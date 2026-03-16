@@ -6,8 +6,8 @@
 <title>SICAD Avaliador — UFG</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
-<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -644,7 +644,8 @@ function parseItems(text) {
   const warnings = [];
   
   // Find all "Item da Resolução:" positions with robust code capture
-  const codeRegex = /Item\s+da\s+Resolu[çc][ãa]o[:\s]*([IVX\d.\-]+)/gi;
+  // Captures codes like "I-1-1", "II-1-5.3", "II - 3 - 11", "II - 3 - 12.3", "IV-2-6.1"
+  const codeRegex = /Item\s+da\s+Resolu[çc][ãa]o[:\s]*([IVX]+\s*[-–—]\s*\d+\s*[-–—]\s*\d+(?:\.\d+)?)/gi;
   let match;
   const positions = [];
   
