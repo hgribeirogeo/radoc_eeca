@@ -644,7 +644,7 @@ function parseItems(text) {
   const warnings = [];
   
   // Find all "Item da Resolução:" positions with robust code capture
-  const codeRegex = /Item da Resolu[çc][ãa]o:\s*([IVX\d\s.\-–—]+)/gi;
+  const codeRegex = /Item\s+da\s+Resolu[çc][ãa]o[:\s]*([IVX\d.\-]+)/gi;
   let match;
   const positions = [];
   
