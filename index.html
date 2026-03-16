@@ -725,8 +725,27 @@ function calculateScores(items) {
     let rawScore = 0;
 
     if (rule.type === 'teaching') {
+      const nivel = (item.nivel || '').toLowerCase();
+      const nivelSemAcento = nivel
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '');
+
+      const isGrad = nivelSemAcento.includes('graduacao');
+      const isStricto = nivelSemAcento.includes('stricto');
+      const isLato = nivelSemAcento.includes('lato');
       const ch = item.chTotal || 0;
-      rawScore = Math.round((10 * (ch / 32)) * 100) / 100;
+
+      if (isLato) {
+        rawScore = 0;
+      } else if (rule.sub === 'GRAD' && isGrad) {
+        rawScore = Math.round((10 * (ch / 32)) * 100) / 100;
+      } else if (rule.sub === 'POS' && isStricto) {
+        rawScore = Math.round((10 * (ch / 32)) * 100) / 100;
+      } else if (!item.nivel) {
+        rawScore = Math.round((10 * (ch / 32)) * 100) / 100;
+      } else {
+        rawScore = 0;
+      }
     } else if (rule.type === 'per_item') {
       rawScore = rule.pts;
     } else if (rule.type === 'per_year') {
