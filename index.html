@@ -1,0 +1,1365 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SICAD Avaliador — UFG</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f5f5f0;
+  --surface: #ffffff;
+  --surface-alt: #fafaf7;
+  --border: #e0ddd5;
+  --border-strong: #c8c4ba;
+  --text: #1a1a18;
+  --text-secondary: #6b6860;
+  --text-muted: #9a968d;
+  --accent: #1a4b8c;
+  --accent-light: #e8eef6;
+  --accent-hover: #153d72;
+  --green: #2d7a3a;
+  --green-bg: #e8f5ea;
+  --red: #b33a3a;
+  --red-bg: #fce8e8;
+  --orange: #b36b1a;
+  --orange-bg: #fff3e0;
+  --cat-ens: #1a4b8c;
+  --cat-pri: #7a3b8c;
+  --cat-psq: #2d7a3a;
+  --cat-ext: #b36b1a;
+  --cat-adm: #8c3b3b;
+  --cat-rep: #3b6b8c;
+  --cat-otr: #5a5a5a;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'IBM Plex Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.mono { font-family: 'IBM Plex Mono', monospace; }
+.container { max-width: 1280px; margin: 0 auto; padding: 0 24px; }
+header {
+  background: var(--surface);
+  border-bottom: 2px solid var(--accent);
+  padding: 16px 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+header .inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+header h1 {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+}
+header h1 span { color: var(--text-muted); font-weight: 400; }
+.header-actions { display: flex; gap: 8px; align-items: center; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn:hover { border-color: var(--border-strong); background: var(--surface-alt); }
+.btn-primary {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-danger { color: var(--red); border-color: var(--red); }
+.btn-danger:hover { background: var(--red-bg); }
+
+/* Upload Zone */
+.upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  padding: 40px;
+  text-align: center;
+  margin: 24px 0;
+  transition: all 0.2s;
+  cursor: pointer;
+  background: var(--surface);
+}
+.upload-zone.dragover {
+  border-color: var(--accent);
+  background: var(--accent-light);
+}
+.upload-zone h3 { font-size: 16px; margin-bottom: 8px; }
+.upload-zone p { color: var(--text-secondary); font-size: 13px; }
+.upload-zone input[type="file"] { display: none; }
+
+/* Processing Log */
+.log {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  border-radius: 6px;
+  padding: 16px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+  margin: 16px 0;
+  line-height: 1.7;
+}
+.log .ok { color: #6bc96b; }
+.log .warn { color: #e6c040; }
+.log .err { color: #e66060; }
+.log .info { color: #6bb5c9; }
+
+/* Evaluations */
+.eval-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.eval-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  cursor: pointer;
+  user-select: none;
+}
+.eval-header:hover { background: var(--surface-alt); }
+.eval-name {
+  font-weight: 600;
+  font-size: 15px;
+}
+.eval-name small {
+  font-weight: 400;
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-left: 8px;
+}
+.eval-scores {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.score-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'IBM Plex Mono', monospace;
+}
+.eval-detail {
+  border-top: 1px solid var(--border);
+  padding: 18px;
+}
+.tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 16px;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 0;
+}
+.tab {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-color: var(--accent); }
+
+/* Items Table */
+.items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.items-table th {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 2px solid var(--border);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+.items-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.items-table tr:hover { background: var(--surface-alt); }
+.items-table .cap-hit { color: var(--orange); font-weight: 600; }
+.items-table .item-code { font-family: 'IBM Plex Mono', monospace; font-size: 12px; white-space: nowrap; }
+
+/* Summary Table */
+.summary-section { margin: 24px 0; }
+.summary-section h2 { font-size: 16px; margin-bottom: 12px; }
+.summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.summary-table th {
+  background: var(--accent);
+  color: white;
+  padding: 10px 8px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.summary-table td {
+  padding: 8px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+}
+.summary-table td:first-child {
+  text-align: left;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 500;
+}
+.summary-table tr:nth-child(even) { background: var(--surface-alt); }
+.summary-table .total-col { background: var(--accent-light); font-weight: 700; }
+
+/* Score Breakdown */
+.breakdown {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+.breakdown-card {
+  padding: 12px;
+  border-radius: 6px;
+  border-left: 4px solid;
+}
+.breakdown-card h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7; }
+.breakdown-card .value { font-size: 24px; font-weight: 700; font-family: 'IBM Plex Mono', monospace; }
+.breakdown-card .detail { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+
+/* Settings Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+.modal {
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 24px;
+  width: 480px;
+  max-width: 90vw;
+}
+.modal h3 { margin-bottom: 16px; }
+.modal label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+.modal input[type="text"], .modal input[type="password"] {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+.modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+/* Status indicators */
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  display: inline-block; margin-right: 6px;
+}
+.status-dot.green { background: var(--green); }
+.status-dot.orange { background: var(--orange); }
+.status-dot.red { background: var(--red); }
+
+footer {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-top: 40px;
+  border-top: 1px solid var(--border);
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+// ============================================================
+// SCORING RULES ENGINE — CONSUNI 18/2017 Anexo II
+// ============================================================
+// Types: 'teaching' (10 × CH/32), 'per_item' (flat), 'per_year' (×months/12), 'per_month' (×months)
+const RULES = {
+  // I - ENSINO
+  'I-1-1': { cat:'ENS', sub:'GRAD', type:'teaching', name:'Aulas presenciais graduação' },
+  'I-1-2': { cat:'ENS', sub:'GRAD', type:'teaching', name:'Aulas EAD graduação' },
+  'I-2-1': { cat:'ENS', sub:'POS', type:'teaching', name:'Aulas presenciais pós-graduação' },
+  'I-2-2': { cat:'ENS', sub:'POS', type:'teaching', name:'Aulas EAD pós-graduação' },
+  'I-3-1': { cat:'PROJ_ENS', type:'per_item', pts:10, name:'Coord. projeto ensino c/ financ.' },
+  'I-3-2': { cat:'PROJ_ENS', type:'per_item', pts:5, cap:10, name:'Coord. projeto ensino s/ financ.' },
+
+  // II-1 PRODUÇÃO CIENTÍFICA
+  'II-1-1.1': { cat:'PRI', type:'per_item', pts:25, name:'Artigo Qualis A' },
+  'II-1-1.2': { cat:'PRI', type:'per_item', pts:20, name:'Artigo Qualis B' },
+  'II-1-1.3': { cat:'PRI', type:'per_item', pts:15, name:'Artigo Qualis C' },
+  'II-1-1.4': { cat:'PRI', type:'per_item', pts:10, cap:10, name:'Artigo sem Qualis' },
+  'II-1-2':   { cat:'PRI', type:'per_item', pts:5, name:'Resumo em periódico' },
+  'II-1-3':   { cat:'PRI', type:'per_item', pts:5, cap:10, name:'Artigo repositório' },
+  'II-1-4.1': { cat:'PRI', type:'per_item', pts:8, capGrp:'II-1-4', cap:10, name:'Resumo expand. internacional' },
+  'II-1-4.2': { cat:'PRI', type:'per_item', pts:6, capGrp:'II-1-4', cap:10, name:'Resumo expand. nacional' },
+  'II-1-4.3': { cat:'PRI', type:'per_item', pts:4, capGrp:'II-1-4', cap:10, name:'Resumo expand. regional' },
+  'II-1-5.1': { cat:'PRI', type:'per_item', pts:4, capGrp:'II-1-5', cap:10, name:'Resumo simples internacional' },
+  'II-1-5.2': { cat:'PRI', type:'per_item', pts:3, capGrp:'II-1-5', cap:10, name:'Resumo simples nacional' },
+  'II-1-5.3': { cat:'PRI', type:'per_item', pts:2, capGrp:'II-1-5', cap:10, name:'Resumo simples regional' },
+  'II-1-6':   { cat:'PRI', type:'per_item', pts:10, name:'Trabalho completo em anais' },
+  'II-1-7':   { cat:'PRI', type:'per_item', pts:40, name:'Livro c/ corpo editorial' },
+  'II-1-8':   { cat:'PRI', type:'per_item', pts:10, name:'Livro s/ corpo editorial' },
+  'II-1-9':   { cat:'PRI', type:'per_item', pts:10, cap:40, name:'Capítulo de livro' },
+  'II-1-10':  { cat:'PRI', type:'per_item', pts:12, name:'Edição/organização livro' },
+  'II-1-11':  { cat:'PRI', type:'per_item', pts:5, cap:20, name:'Capítulo traduzido' },
+  'II-1-12':  { cat:'PRI', type:'per_item', pts:20, name:'Tradução de livro' },
+  'II-1-13':  { cat:'PRI', type:'per_item', pts:10, name:'Tradução de artigos Qualis' },
+  'II-1-14':  { cat:'PRI', type:'per_item', pts:5, name:'Resenhas/prefácios/verbetes' },
+  'II-1-15':  { cat:'PRI', type:'per_item', pts:2, name:'Tradução resenhas etc.' },
+  'II-1-16':  { cat:'PRI', type:'per_item', pts:10, name:'Livro didático institucional' },
+  'II-1-17.1':{ cat:'PRI', type:'per_item', pts:15, capGrp:'II-1-17', cap:15, name:'Editor anais internacional' },
+  'II-1-17.2':{ cat:'PRI', type:'per_item', pts:10, capGrp:'II-1-17', cap:10, name:'Editor anais nacional' },
+  'II-1-17.3':{ cat:'PRI', type:'per_item', pts:5, capGrp:'II-1-17', cap:5, name:'Editor anais regional' },
+  'II-1-18':  { cat:'PRI', type:'per_item', pts:20, name:'Dissertação mestrado (docente autor)' },
+  'II-1-19':  { cat:'PRI', type:'per_item', pts:40, name:'Tese doutorado (docente autor)' },
+  'II-1-20':  { cat:'PRI', type:'per_year', pts:20, name:'Bolsista Produtividade CNPq' },
+
+  // II-2 PRODUÇÃO ARTÍSTICA
+  'II-2-1.1': { cat:'PRI', type:'per_item', pts:10, name:'Criação filme/vídeo local' },
+  'II-2-1.2': { cat:'PRI', type:'per_item', pts:15, name:'Criação filme/vídeo nacional' },
+  'II-2-1.3': { cat:'PRI', type:'per_item', pts:20, name:'Criação filme/vídeo internacional' },
+  'II-2-2':   { cat:'PRI', type:'per_item', pts:10, name:'Projeto gráfico livros' },
+  'II-2-3':   { cat:'PRI', type:'per_item', pts:15, name:'Trilha sonora' },
+  'II-2-4':   { cat:'PRI', type:'per_item', pts:15, name:'Iluminação/figurinos' },
+  'II-2-5':   { cat:'PRI', type:'per_item', pts:1, cap:20, name:'Design impressos' },
+  'II-2-6.1': { cat:'PRI', type:'per_item', pts:16, name:'Exposição individual local' },
+  'II-2-6.2': { cat:'PRI', type:'per_item', pts:5, name:'Exposição coletiva local' },
+  'II-2-7.1': { cat:'PRI', type:'per_item', pts:20, name:'Exposição individual nacional' },
+  'II-2-7.2': { cat:'PRI', type:'per_item', pts:10, name:'Exposição coletiva nacional' },
+  'II-2-8.1': { cat:'PRI', type:'per_item', pts:20, name:'Exposição individual internacional' },
+  'II-2-8.2': { cat:'PRI', type:'per_item', pts:15, name:'Exposição coletiva internacional' },
+  'II-2-9.1': { cat:'PRI', type:'per_item', pts:20, name:'Composição editada' },
+  'II-2-9.2': { cat:'PRI', type:'per_item', pts:20, name:'Composição publicada' },
+  'II-2-9.3': { cat:'PRI', type:'per_item', pts:20, name:'Composição gravada' },
+  'II-2-9.4': { cat:'PRI', type:'per_item', pts:15, name:'Composição executada' },
+  'II-2-10.1':{ cat:'PRI', type:'per_item', pts:5, name:'Produção premiada local' },
+  'II-2-10.2':{ cat:'PRI', type:'per_item', pts:10, name:'Produção premiada nacional' },
+  'II-2-10.3':{ cat:'PRI', type:'per_item', pts:15, name:'Produção premiada internacional' },
+  'II-2-11':  { cat:'PRI', type:'per_item', pts:5, name:'Arranjos musicais' },
+  'II-2-12':  { cat:'PRI', type:'per_item', pts:5, name:'Apresentação rádio/TV' },
+  'II-2-13':  { cat:'PRI', type:'per_item', pts:3, name:'Sonoplastia' },
+  'II-2-14':  { cat:'PRI', type:'per_item', pts:3, cap:15, name:'Fotos/charges/portfolio' },
+
+  // II-3 PRODUÇÃO TÉCNICA
+  'II-3-1':   { cat:'PRI', type:'per_item', pts:20, name:'Software c/ registro INPI' },
+  'II-3-2':   { cat:'PRI', type:'per_item', pts:10, name:'Software em periódico/anais' },
+  'II-3-3':   { cat:'PRI', type:'per_item', pts:5, cap:10, name:'Software institucional' },
+  'II-3-4':   { cat:'PRI', type:'per_item', pts:20, name:'Topografia circuito INPI' },
+  'II-3-5':   { cat:'PRI', type:'per_item', pts:20, name:'Patente INPI' },
+  'II-3-6':   { cat:'PRI', type:'per_item', pts:20, name:'Desenho industrial INPI' },
+  'II-3-7':   { cat:'PRI', type:'per_item', pts:20, name:'Indicação geográfica INPI' },
+  'II-3-8':   { cat:'PRI', type:'per_item', pts:5, name:'Marca INPI' },
+  'II-3-9':   { cat:'PRI', type:'per_year', pts:10, name:'Corpo editorial Qualis' },
+  'II-3-10':  { cat:'PRI', type:'per_item', pts:8, cap:30, name:'Parecer livro' },
+  'II-3-11':  { cat:'PRI', type:'per_item', pts:6, cap:30, name:'Parecer artigo periódico' },
+  'II-3-12.1':{ cat:'PRI', type:'per_item', pts:5, capGrp:'II-3-12', cap:20, name:'Parecer trabalho completo evento' },
+  'II-3-12.2':{ cat:'PRI', type:'per_item', pts:3, capGrp:'II-3-12', cap:20, name:'Parecer resumo expandido evento' },
+  'II-3-12.3':{ cat:'PRI', type:'per_item', pts:1, capGrp:'II-3-12', cap:20, name:'Parecer resumo evento' },
+  'II-3-13':  { cat:'PRI', type:'per_item', pts:10, cap:20, name:'Revisão ad hoc' },
+  'II-3-14':  { cat:'PRI', type:'per_item', pts:2, cap:10, name:'Coord. mesa redonda' },
+  'II-3-15.1':{ cat:'PRI', type:'per_item', pts:10, name:'Parecer c/ ART' },
+  'II-3-15.2':{ cat:'PRI', type:'per_item', pts:5, name:'Parecer s/ ART' },
+  'II-3-15.3':{ cat:'PRI', type:'per_item', pts:20, name:'Projeto/relatório c/ ART' },
+  'II-3-15.4':{ cat:'PRI', type:'per_item', pts:10, name:'Projeto/relatório s/ ART' },
+  'II-3-16':  { cat:'PRI', type:'per_item', pts:5, name:'Anais/manuais/catálogos' },
+  'II-3-17':  { cat:'PRI', type:'per_item', pts:10, name:'Mapas/cartas' },
+  'II-3-18':  { cat:'PRI', type:'per_item', pts:5, name:'Maquete' },
+  'II-3-19.1':{ cat:'PRI', type:'per_item', pts:20, name:'Restauração obra' },
+  'II-3-19.2':{ cat:'PRI', type:'per_year', pts:10, name:'Conservação obra' },
+  'II-3-20':  { cat:'PRI', type:'per_item', pts:5, name:'Curadoria' },
+  'II-3-21.1':{ cat:'PRI', type:'per_year', pts:20, name:'Cinema editor/diretor' },
+  'II-3-21.2':{ cat:'PRI', type:'per_item', pts:3, cap:9, name:'Cinema participante' },
+  'II-3-22':  { cat:'PRI', type:'per_year', pts:4, cap:4, name:'Páginas web/redes sociais' },
+  'II-3-23.1':{ cat:'PRI', type:'per_item', pts:2, capGrp:'II-3-23', cap:10, name:'Entrevista regional' },
+  'II-3-23.2':{ cat:'PRI', type:'per_item', pts:3, capGrp:'II-3-23', cap:10, name:'Entrevista nacional' },
+  'II-3-23.3':{ cat:'PRI', type:'per_item', pts:4, capGrp:'II-3-23', cap:10, name:'Entrevista internacional' },
+
+  // II-4 OUTRO TIPO PRODUÇÃO
+  'II-4-1':  { cat:'PRI', type:'per_item', pts:1, name:'Artigo opinião' },
+  'II-4-2':  { cat:'PRI', type:'per_item', pts:2, name:'Material didático' },
+  'II-4-3':  { cat:'PRI', type:'per_item', pts:3, name:'Divulgação científica' },
+  'II-4-4':  { cat:'PRI', type:'per_item', pts:3, cap:9, name:'Apresentação oral congresso' },
+  'II-4-5':  { cat:'PRI', type:'per_item', pts:1, cap:3, name:'Pôster congresso' },
+  'II-4-6':  { cat:'PRI', type:'per_item', pts:3, cap:9, name:'Caderno programação/resumos' },
+  'II-4-7':  { cat:'PRI', type:'per_item', pts:5, name:'Trabalho premiado' },
+  'II-4-8':  { cat:'PRI', type:'per_item', pts:8, name:'Tese/dissertação premiada' },
+
+  // III-1 PESQUISA
+  'III-1-1': { cat:'PSQ', type:'per_year', pts:10, name:'Coord. PRODOC/PROCAD etc.' },
+  'III-1-2': { cat:'PSQ', type:'per_year', pts:10, name:'Coord. pesquisa c/ financ.' },
+  'III-1-3': { cat:'PSQ', type:'per_year', pts:5, cap:10, name:'Coord. pesquisa s/ financ.' },
+
+  // III-2 EXTENSÃO
+  'III-2-1':  { cat:'EXT', type:'per_year', pts:10, name:'Coord. extensão c/ financ.' },
+  'III-2-2':  { cat:'EXT', type:'per_year', pts:5, cap:15, name:'Coord. extensão PROEC' },
+  'III-2-3':  { cat:'EXT', type:'per_year', pts:5, name:'Coord. convênio internacional' },
+  'III-2-4':  { cat:'EXT', type:'per_year', pts:3, name:'Coord. convênio nacional' },
+  'III-2-5':  { cat:'EXT', type:'per_year', pts:3, cap:15, name:'Participante extensão' },
+  'III-2-6':  { cat:'EXT', type:'per_item', pts:5, cap:15, name:'Curso extensão ≥20h' },
+  'III-2-7':  { cat:'EXT', type:'per_item', pts:2, cap:10, name:'Curso extensão <20h' },
+  'III-2-8.1':{ cat:'EXT', type:'per_item', pts:10, cap:20, name:'Palestrante intl.' },
+  'III-2-8.2':{ cat:'EXT', type:'per_item', pts:6, cap:12, name:'Palestrante nacional' },
+  'III-2-8.3':{ cat:'EXT', type:'per_item', pts:5, cap:10, name:'Palestrante regional' },
+  'III-2-9.1':{ cat:'EXT', type:'per_item', pts:5, name:'Presidente evento local' },
+  'III-2-9.2':{ cat:'EXT', type:'per_item', pts:3, name:'Comissão evento local' },
+  'III-2-10.1':{ cat:'EXT', type:'per_item', pts:7, name:'Presidente evento regional' },
+  'III-2-10.2':{ cat:'EXT', type:'per_item', pts:4, name:'Comissão evento regional' },
+  'III-2-11.1':{ cat:'EXT', type:'per_item', pts:10, name:'Presidente evento nacional' },
+  'III-2-11.2':{ cat:'EXT', type:'per_item', pts:6, name:'Comissão evento nacional' },
+  'III-2-12.1':{ cat:'EXT', type:'per_item', pts:15, name:'Presidente evento intl.' },
+  'III-2-12.2':{ cat:'EXT', type:'per_item', pts:8, name:'Comissão evento intl.' },
+
+  // IV-1 DIREÇÃO (per month)
+  'IV-1-1':  { cat:'ADM', type:'per_month', pts:14, name:'Reitor/Vice-Reitor/Pró-Reitor' },
+  'IV-1-2':  { cat:'ADM', type:'per_month', pts:14, name:'Diretor Regional' },
+  'IV-1-3':  { cat:'ADM', type:'per_month', pts:12, name:'Vice-Diretor Regional' },
+  'IV-1-4':  { cat:'ADM', type:'per_month', pts:12, name:'Coord. Regional' },
+  'IV-1-5':  { cat:'ADM', type:'per_month', pts:10, name:'Chefe Gabinete Reitoria' },
+  'IV-1-6':  { cat:'ADM', type:'per_month', pts:10, name:'Coord./Assessor Reitoria' },
+  'IV-1-7':  { cat:'ADM', type:'per_month', pts:10, name:'Assessor Diretoria Regional' },
+  'IV-1-8':  { cat:'ADM', type:'per_month', pts:10, name:'Diretor Unidade Acadêmica' },
+  'IV-1-9':  { cat:'ADM', type:'per_month', pts:10, name:'Diretor Geral HC' },
+  'IV-1-10': { cat:'ADM', type:'per_month', pts:8, name:'Coord./Assessor Pró-Reitoria' },
+  'IV-1-11': { cat:'ADM', type:'per_month', pts:8, name:'Coord. PPG stricto sensu' },
+  'IV-1-12': { cat:'ADM', type:'per_month', pts:8, name:'Coord. Curso Graduação' },
+  'IV-1-13': { cat:'ADM', type:'per_month', pts:8, name:'Vice-Diretor Unidade' },
+  'IV-1-14': { cat:'ADM', type:'per_month', pts:8, name:'Diretor Hospital Veterinário' },
+  'IV-1-15': { cat:'ADM', type:'per_month', pts:8, name:'Diretor Órgão Administração' },
+
+  // IV-2 ATIVIDADES ADMINISTRATIVAS (per year proportional)
+  'IV-2-1':  { cat:'ADM', type:'per_year', pts:5, name:'Coord. projeto institucional' },
+  'IV-2-2':  { cat:'ADM', type:'per_year', pts:10, cap:10, name:'Coord. especialização/residência' },
+  'IV-2-3':  { cat:'ADM', type:'per_month', pts:4, name:'Vice-Diretor CIAR/Subcoordenador' },
+  'IV-2-4':  { cat:'ADM', type:'per_year', pts:10, name:'Representante CONSUNI' },
+  'IV-2-5':  { cat:'ADM', type:'per_year', pts:10, name:'Membro Câmaras/Plenário/Conselho' },
+  'IV-2-5.1':{ cat:'ADM', type:'per_year', pts:10, name:'Membro Conselho Regional' },
+  'IV-2-6.1':{ cat:'ADM', type:'per_year', pts:2, name:'Portaria ≤30h' },
+  'IV-2-6.2':{ cat:'ADM', type:'per_year', pts:4, name:'Portaria 30-60h' },
+  'IV-2-6.3':{ cat:'ADM', type:'per_year', pts:6, name:'Portaria 60-90h' },
+  'IV-2-6.4':{ cat:'ADM', type:'per_year', pts:8, name:'Portaria 90-120h' },
+  'IV-2-6.5':{ cat:'ADM', type:'per_year', pts:10, name:'Portaria 120-150h' },
+  'IV-2-6.6':{ cat:'ADM', type:'per_year', pts:12, name:'Portaria >150h' },
+
+  // IV-3 OUTRAS ATIV. ADMINISTRATIVAS (per month)
+  'IV-3-1':  { cat:'ADM', type:'per_month', pts:7, name:'Presidente CPPD' },
+  'IV-3-2':  { cat:'ADM', type:'per_month', pts:6, name:'Presidente CEP/CEUA' },
+  'IV-3-3':  { cat:'ADM', type:'per_month', pts:5, name:'Presidente CAI/CPA' },
+  'IV-3-4':  { cat:'ADM', type:'per_month', pts:5, name:'Centro de Seleção' },
+  'IV-3-5':  { cat:'ADM', type:'per_month', pts:5, name:'Diretores HC' },
+  'IV-3-6':  { cat:'ADM', type:'per_month', pts:5, name:'Membros CPPD/CAI/CPA/CAD' },
+  'IV-3-7':  { cat:'ADM', type:'per_month', pts:5, name:'CPAD/Sindicância/PAD' },
+  'IV-3-8':  { cat:'ADM', type:'per_month', pts:3, name:'Membro NDE' },
+  'IV-3-9':  { cat:'ADM', type:'per_month', pts:5, name:'Gestor Convênios Intl.' },
+  'IV-3-10': { cat:'ADM', type:'per_month', pts:3, name:'Coord. Pesq/Ens/Ext Unidade' },
+  'IV-3-11': { cat:'ADM', type:'per_month', pts:3, name:'Chefia Departamento' },
+  'IV-3-12': { cat:'ADM', type:'per_month', pts:3, name:'Chefe PS/Maternidade/CEROF' },
+  'IV-3-13': { cat:'ADM', type:'per_month', pts:3, name:'Membros CEP/CEUA' },
+  'IV-3-14': { cat:'ADM', type:'per_month', pts:3, name:'Comitê PIBIC/PIBITI' },
+  'IV-3-15': { cat:'ADM', type:'per_month', pts:3, name:'Orientador EJ titular' },
+  'IV-3-16': { cat:'ADM', type:'per_month', pts:3, name:'Orientador EJ colaborador' },
+  'IV-3-17': { cat:'ADM', type:'per_month', pts:3, name:'Coord. Monitoria' },
+  'IV-3-18': { cat:'ADM', type:'per_month', pts:3, name:'Coord. Módulo Ativa' },
+  'IV-3-19': { cat:'ADM', type:'per_month', pts:2, name:'Coord. TCC/PCC' },
+  'IV-3-20.1':{ cat:'ADM', type:'per_month', pts:5, name:'Editor Qualis A' },
+  'IV-3-20.2':{ cat:'ADM', type:'per_month', pts:4, name:'Editor Qualis B' },
+  'IV-3-20.3':{ cat:'ADM', type:'per_month', pts:3, name:'Editor Qualis C' },
+  'IV-3-20.4':{ cat:'ADM', type:'per_month', pts:2, name:'Editor s/ Qualis' },
+  'IV-3-21': { cat:'ADM', type:'per_month', pts:5, name:'Comitê agência fomento' },
+  'IV-3-22': { cat:'ADM', type:'per_month', pts:5, name:'Comissões governo' },
+
+  // IV-4 REPRESENTAÇÃO FORA UFG (per year proportional)
+  'IV-4-1': { cat:'RPT', type:'per_year', pts:10, name:'Conselho profissional ≥150h' },
+  'IV-4-2': { cat:'RPT', type:'per_year', pts:10, name:'Presidente Sindicato' },
+  'IV-4-3': { cat:'RPT', type:'per_year', pts:3, name:'Diretor Sindicato' },
+  'IV-4-4': { cat:'RPT', type:'per_year', pts:10, name:'Representante sindical ≥150h' },
+  'IV-4-5': { cat:'RPT', type:'per_year', pts:10, name:'Representante entidade ≥150h' },
+  'IV-4-6': { cat:'RPT', type:'per_year', pts:10, name:'Representante comissão governo ≥150h' },
+
+  // V-1 ORIENTAÇÃO
+  'V-1-1':  { cat:'OTR', type:'per_item', pts:20, name:'Orient. doutorado defendido' },
+  'V-1-2':  { cat:'OTR', type:'per_item', pts:7, name:'Co-orient. doutorado defendido' },
+  'V-1-3':  { cat:'OTR', type:'per_item', pts:10, name:'Orient. doutorado andamento' },
+  'V-1-4':  { cat:'OTR', type:'per_item', pts:4, name:'Co-orient. doutorado andamento' },
+  'V-1-5':  { cat:'OTR', type:'per_item', pts:15, name:'Orient. mestrado defendido' },
+  'V-1-6':  { cat:'OTR', type:'per_item', pts:5, name:'Co-orient. mestrado defendido' },
+  'V-1-7':  { cat:'OTR', type:'per_item', pts:8, name:'Orient. mestrado andamento' },
+  'V-1-8':  { cat:'OTR', type:'per_item', pts:3, name:'Co-orient. mestrado andamento' },
+  'V-1-9':  { cat:'OTR', type:'per_item', pts:8, cap:24, name:'Monografia especialização aprovada' },
+  'V-1-10': { cat:'OTR', type:'per_item', pts:4, cap:12, name:'Monografia especialização andamento' },
+  'V-1-11': { cat:'OTR', type:'per_item', pts:5, name:'Residência médica/multiprofissional' },
+  'V-1-12': { cat:'OTR', type:'per_item', pts:3, name:'Estágio curricular obrigatório' },
+  'V-1-13': { cat:'OTR', type:'per_item', pts:3, name:'Projeto final de curso' },
+  'V-1-14': { cat:'OTR', type:'per_item', pts:6, name:'Outra IFE doutorado defendido' },
+  'V-1-15': { cat:'OTR', type:'per_item', pts:3, name:'Outra IFE co-orient. doutorado defendido' },
+  'V-1-16': { cat:'OTR', type:'per_item', pts:3, name:'Outra IFE doutorado andamento' },
+  'V-1-17': { cat:'OTR', type:'per_item', pts:2, name:'Outra IFE co-orient. doutorado andamento' },
+  'V-1-18': { cat:'OTR', type:'per_item', pts:4, name:'Outra IFE mestrado defendido' },
+  'V-1-19': { cat:'OTR', type:'per_item', pts:2, name:'Outra IFE co-orient. mestrado defendido' },
+  'V-1-20': { cat:'OTR', type:'per_item', pts:2, name:'Outra IFE mestrado andamento' },
+  'V-1-21': { cat:'OTR', type:'per_item', pts:1, name:'Outra IFE co-orient. mestrado andamento' },
+  'V-1-22': { cat:'OTR', type:'per_item', pts:6, name:'IC PIBIC/PIVIC/PIBITI etc.' },
+  'V-1-23': { cat:'OTR', type:'per_item', pts:5, name:'IC júnior/jovens talentos' },
+  'V-1-24': { cat:'OTR', type:'per_item', pts:5, name:'PET' },
+  'V-1-25': { cat:'OTR', type:'per_item', pts:4, name:'Bolsista projetos' },
+  'V-1-26': { cat:'OTR', type:'per_item', pts:3, name:'Sem bolsa projetos' },
+  'V-1-27': { cat:'OTR', type:'per_item', pts:3, name:'Monitoria' },
+  'V-1-28': { cat:'OTR', type:'per_item', pts:2, name:'Estágio não obrigatório' },
+  'V-1-29': { cat:'OTR', type:'per_item', pts:1, name:'PCC' },
+  'V-1-30': { cat:'OTR', type:'per_item', pts:20, cap:40, name:'Aluno deficiência' },
+  'V-1-31': { cat:'OTR', type:'per_item', pts:8, name:'Pós-doc supervisionado' },
+  'V-1-32': { cat:'OTR', type:'per_item', pts:1, name:'Preceptoria' },
+  'V-1-33': { cat:'OTR', type:'per_item', pts:1, name:'Tutoria' },
+  'V-1-34': { cat:'OTR', type:'per_item', pts:1, name:'Intercâmbio internacional' },
+  'V-1-35': { cat:'OTR', type:'per_item', pts:4, cap:20, name:'Aluno baixo rendimento' },
+
+  // V-2 BANCAS E CURSOS
+  'V-2-1.1': { cat:'OTR', type:'per_item', pts:4, name:'Banca concurso efetivo UFG' },
+  'V-2-1.2': { cat:'OTR', type:'per_item', pts:6, name:'Banca concurso efetivo outra' },
+  'V-2-2':   { cat:'OTR', type:'per_item', pts:2, name:'Banca concurso substituto' },
+  'V-2-3.1': { cat:'OTR', type:'per_item', pts:4, name:'Banca mestrado UFG' },
+  'V-2-3.2': { cat:'OTR', type:'per_item', pts:6, name:'Banca mestrado outra' },
+  'V-2-4.1': { cat:'OTR', type:'per_item', pts:6, name:'Banca doutorado UFG' },
+  'V-2-4.2': { cat:'OTR', type:'per_item', pts:8, name:'Banca doutorado outra' },
+  'V-2-5.1': { cat:'OTR', type:'per_item', pts:3, name:'Qualificação mestrado UFG' },
+  'V-2-5.2': { cat:'OTR', type:'per_item', pts:4, name:'Qualificação mestrado outra' },
+  'V-2-6.1': { cat:'OTR', type:'per_item', pts:5, name:'Qualificação doutorado UFG' },
+  'V-2-6.2': { cat:'OTR', type:'per_item', pts:6, name:'Qualificação doutorado outra' },
+  'V-2-7.1': { cat:'OTR', type:'per_item', pts:6, name:'Memorial Titular UFG' },
+  'V-2-7.2': { cat:'OTR', type:'per_item', pts:8, name:'Memorial Titular outra' },
+  'V-2-8':   { cat:'OTR', type:'per_item', pts:3, cap:12, name:'Banca monografia/TCC/outras' },
+  'V-2-9.1': { cat:'OTR', type:'per_item', pts:8, name:'Júri internacional' },
+  'V-2-9.2': { cat:'OTR', type:'per_item', pts:6, name:'Júri nacional' },
+  'V-2-10':  { cat:'OTR', type:'per_item', pts:2, name:'Cursos/palestras não curriculares' },
+  'V-2-11':  { cat:'OTR', type:'per_year', pts:10, name:'Coord. intercâmbio intl.' },
+
+  // V-3 APRENDIZADO
+  'V-3-1': { cat:'OTR', type:'per_month', pts:12, name:'Pós-Graduação stricto sensu' },
+  'V-3-2': { cat:'OTR', type:'per_month', pts:12, name:'Estágio Pós-Doutoral' },
+  'V-3-3': { cat:'OTR', type:'per_month', pts:12, name:'Licença capacitação' },
+  'V-3-4': { cat:'OTR', type:'per_item', pts:3, name:'Curso aperfeiçoamento ≥40h' },
+  'V-3-5': { cat:'OTR', type:'per_item', pts:1, name:'Curso aperfeiçoamento <40h' },
+  'V-3-6': { cat:'OTR', type:'per_item', pts:2, cap:10, name:'Congressos/seminários' },
+};
+
+// Category metadata
+const CATEGORIES = {
+  ENS:      { label: 'I - Ativ. Ensino', color: '#1a4b8c' },
+  GRAD:     { label: 'Ensino (GRAD)', color: '#1a4b8c' },
+  POS:      { label: 'Ensino (PÓS)', color: '#2d5fa0' },
+  PROJ_ENS: { label: 'I - Proj. Ensino', color: '#3b7ab8' },
+  PRI:      { label: 'II - Prod. Intelectual', color: '#7a3b8c' },
+  PSQ:      { label: 'III-1 - Ativ. Pesquisa', color: '#2d7a3a' },
+  EXT:      { label: 'III-2 - Ativ. Extensão', color: '#b36b1a' },
+  ADM:      { label: 'IV (1-3) - Ativ. Admin.', color: '#8c3b3b' },
+  RPT:      { label: 'IV (4) - Representação', color: '#3b6b8c' },
+  OTR:      { label: 'V - Outras Atividades', color: '#5a5a5a' },
+};
+
+// ============================================================
+// PDF PARSER
+// ============================================================
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+function normalizeCode(raw) {
+  return raw.replace(/\s+/g, '').replace(/–/g, '-').replace(/—/g, '-').trim();
+}
+
+async function extractTextFromPDF(file) {
+  const ab = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+  let fullText = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const tc = await page.getTextContent();
+    const pageText = tc.items.map(it => it.str).join(' ');
+    fullText += pageText + '\n';
+  }
+  return fullText;
+}
+
+function parseDocenteName(text) {
+  const m = text.match(/Relat[óo]rio\s+do\s+docente\s+([A-ZÁÀÂÃÉÈÊÍÏÓÔÕÚÜÇ\s]+)\s*\(/i);
+  if (m) return m[1].trim();
+  const m2 = text.match(/Nome:\s*([A-Za-záàâãéèêíïóôõúüçÁÀÂÃÉÈÊÍÏÓÔÕÚÜÇ\s]+?)(?:\s+E-mail:|\s+Dados)/i);
+  return m2 ? m2[1].trim() : 'Docente Desconhecido';
+}
+
+function parseItems(text) {
+  const items = [];
+  const warnings = [];
+  
+  // Find all "Item da Resolução:" positions with robust code capture
+  const codeRegex = /Item da Resolu[çc][ãa]o:\s*([IVX\d\s.\-–—]+)/gi;
+  let match;
+  const positions = [];
+  
+  while ((match = codeRegex.exec(text)) !== null) {
+    positions.push({
+      index: match.index,
+      rawCode: match[1].trim(),
+    });
+  }
+  
+  // For each position, extract the block and parse fields
+  for (let i = 0; i < positions.length; i++) {
+    const blockStart = positions[i].index;
+    const blockEnd = i + 1 < positions.length ? positions[i+1].index : Math.min(blockStart + 2000, text.length);
+    const block = text.substring(blockStart, blockEnd);
+    
+    // Find Pontuação in this block
+    const ptsMatch = block.match(/Pontua[çc][ãa]o:\s*([\d.,]+)/i);
+    positions[i].sicadPts = ptsMatch ? parseFloat(ptsMatch[1].replace(',','.')) : null;
+  }
+  
+  for (let i = 0; i < positions.length; i++) {
+    const pos = positions[i];
+    const nextIndex = i + 1 < positions.length ? positions[i+1].index : text.length;
+    const block = text.substring(pos.index, nextIndex);
+    const code = normalizeCode(pos.rawCode);
+    
+    const item = {
+      code: code,
+      sicadPts: pos.sicadPts,
+      rawBlock: block.substring(0, 500),
+    };
+    
+    // Extract CH Total Alocada (for teaching items)
+    const chMatch = block.match(/CH\s+Total\s+Alocada:\s*([\d.,]+)/i);
+    if (chMatch) item.chTotal = parseFloat(chMatch[1].replace(',','.'));
+    
+    // Extract Tempo de Atuação (months)
+    const tempoMatch = block.match(/Tempo\s+de\s+Atua[çc][ãa]o\s+em\s+\d{4}\s*\(Meses\):\s*([\d.,]+)/i);
+    if (tempoMatch) item.months = parseFloat(tempoMatch[1].replace(',','.'));
+    
+    // Extract course level
+    const nivelMatch = block.match(/N[íi]vel:\s*(Gradua[çc][ãa]o|P[óo]s-Gradua[çc][ãa]o)/i);
+    if (nivelMatch) item.nivel = nivelMatch[1];
+    
+    // Extract course name
+    const cursoMatch = block.match(/Curso:\s*([^\n]+)/i);
+    if (cursoMatch) item.curso = cursoMatch[1].trim();
+    
+    // Extract component (discipline name)
+    const compMatch = block.match(/Componente\s+Curricular:\s*([^\n]+)/i);
+    if (compMatch) item.componente = compMatch[1].trim();
+    
+    // Extract title
+    const titleMatch = block.match(/T[íi]tulo:\s*([^\n]+)/i);
+    if (titleMatch) item.titulo = titleMatch[1].trim();
+    
+    // Extract function
+    const funcMatch = block.match(/Fun[çc][ãa]o:\s*([^\n]+)/i);
+    if (funcMatch) item.funcao = funcMatch[1].trim();
+    
+    // Extract discente
+    const discMatch = block.match(/Discente:\s*([^\n]+)/i);
+    if (discMatch) item.discente = discMatch[1].trim();
+    
+    // Extract tipo produção
+    const tipoMatch = block.match(/Tipo\s+de\s+Produ[çc][ãa]o:\s*([^\n]+)/i);
+    if (tipoMatch) item.tipoProd = tipoMatch[1].trim();
+    
+    // Extract portaria
+    const portMatch = block.match(/Portaria:\s*([^\n]+)/i);
+    if (portMatch) item.portaria = portMatch[1].trim();
+    
+    // Validate code against rules
+    if (!RULES[code]) {
+      warnings.push(`Código "${code}" (raw: "${pos.rawCode}") não encontrado nas regras`);
+      item.unknown = true;
+    }
+    
+    items.push(item);
+  }
+  
+  return { items, warnings };
+}
+
+// ============================================================
+// SCORE CALCULATOR
+// ============================================================
+function calculateScores(items) {
+  const results = {
+    ENS_GRAD: 0, ENS_POS: 0, ENS_TOTAL: 0, PROJ_ENS: 0,
+    PRI: 0, PSQ: 0, EXT: 0, ADM: 0, RPT: 0, OTR: 0,
+    TOTAL: 0,
+    details: [],    // per-item breakdown
+    capInfo: [],    // cap application log
+  };
+  
+  // Group items by cap group or code for cap application
+  const groups = {};
+  
+  for (const item of items) {
+    if (item.unknown) {
+      results.details.push({ ...item, calculated: item.sicadPts || 0, note: 'Código desconhecido - usando pontuação SICAD' });
+      continue;
+    }
+    
+    const rule = RULES[item.code];
+    let rawScore = 0;
+    
+    if (rule.type === 'teaching') {
+      const ch = item.chTotal || 0;
+      const has = ch / 32;
+      rawScore = Math.round(10 * has * 100) / 100;
+    } else if (rule.type === 'per_item') {
+      rawScore = rule.pts;
+    } else if (rule.type === 'per_year') {
+      const months = item.months || 12;
+      rawScore = Math.round(rule.pts * (months / 12) * 100) / 100;
+    } else if (rule.type === 'per_month') {
+      const months = item.months || 1;
+      rawScore = Math.round(rule.pts * months * 100) / 100;
+    }
+    
+    const detail = {
+      ...item,
+      ruleName: rule.name,
+      calculated: rawScore,
+      category: rule.cat,
+      subcategory: rule.sub,
+    };
+    results.details.push(detail);
+    
+    // Group for cap application
+    const groupKey = rule.capGrp || item.code;
+    if (!groups[groupKey]) {
+      groups[groupKey] = {
+        items: [],
+        totalRaw: 0,
+        cap: rule.cap || null,
+        cat: rule.cat,
+        sub: rule.sub,
+      };
+    }
+    groups[groupKey].items.push(detail);
+    groups[groupKey].totalRaw += rawScore;
+    // Use the cap from any item in the group (they share the same cap)
+    if (rule.cap) groups[groupKey].cap = rule.cap;
+  }
+  
+  // Apply caps and accumulate per category
+  for (const [groupKey, group] of Object.entries(groups)) {
+    let effective = group.totalRaw;
+    let capHit = false;
+    
+    if (group.cap !== null && group.totalRaw > group.cap) {
+      effective = group.cap;
+      capHit = true;
+      results.capInfo.push({
+        group: groupKey,
+        raw: Math.round(group.totalRaw * 100) / 100,
+        cap: group.cap,
+        effective: effective,
+        count: group.items.length,
+      });
+    }
+    
+    effective = Math.round(effective * 100) / 100;
+    
+    // Mark items if cap was hit
+    if (capHit) {
+      group.items.forEach(it => { it.capHit = true; it.capGroup = groupKey; it.capMax = group.cap; });
+    }
+    
+    // Accumulate
+    const cat = group.cat;
+    const sub = group.sub;
+    
+    if (cat === 'ENS' && sub === 'GRAD') {
+      results.ENS_GRAD += effective;
+    } else if (cat === 'ENS' && sub === 'POS') {
+      results.ENS_POS += effective;
+    } else if (cat === 'PROJ_ENS') {
+      results.PROJ_ENS += effective;
+    } else if (cat === 'PRI') {
+      results.PRI += effective;
+    } else if (cat === 'PSQ') {
+      results.PSQ += effective;
+    } else if (cat === 'EXT') {
+      results.EXT += effective;
+    } else if (cat === 'ADM') {
+      results.ADM += effective;
+    } else if (cat === 'RPT') {
+      results.RPT += effective;
+    } else if (cat === 'OTR') {
+      results.OTR += effective;
+    }
+  }
+  
+  // Round all
+  for (const k of ['ENS_GRAD','ENS_POS','PROJ_ENS','PRI','PSQ','EXT','ADM','RPT','OTR']) {
+    results[k] = Math.round(results[k] * 100) / 100;
+  }
+  results.ENS_TOTAL = Math.round((results.ENS_GRAD + results.ENS_POS) * 100) / 100;
+  results.TOTAL = Math.round((results.ENS_TOTAL + results.PROJ_ENS + results.PRI + results.PSQ + results.EXT + results.ADM + results.RPT + results.OTR) * 100) / 100;
+  
+  return results;
+}
+
+// ============================================================
+// GIST SYNC MODULE
+// ============================================================
+const GIST_STORAGE_KEY = 'sicad_avaliador_config';
+
+function loadConfig() {
+  try {
+    return JSON.parse(localStorage.getItem(GIST_STORAGE_KEY) || '{}');
+  } catch { return {}; }
+}
+
+function saveConfig(cfg) {
+  localStorage.setItem(GIST_STORAGE_KEY, JSON.stringify(cfg));
+}
+
+async function syncToGist(token, gistId, data) {
+  const payload = {
+    description: 'SICAD Avaliador — Avaliações',
+    files: { 'sicad-avaliacoes.json': { content: JSON.stringify(data, null, 2) } }
+  };
+  
+  const url = gistId
+    ? `https://api.github.com/gists/${gistId}`
+    : 'https://api.github.com/gists';
+  
+  const resp = await fetch(url, {
+    method: gistId ? 'PATCH' : 'POST',
+    headers: {
+      'Authorization': `token ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  
+  if (!resp.ok) throw new Error(`Gist sync failed: ${resp.status}`);
+  const result = await resp.json();
+  return result.id;
+}
+
+async function loadFromGist(token, gistId) {
+  const resp = await fetch(`https://api.github.com/gists/${gistId}`, {
+    headers: { 'Authorization': `token ${token}` },
+  });
+  if (!resp.ok) throw new Error(`Gist load failed: ${resp.status}`);
+  const result = await resp.json();
+  const file = result.files['sicad-avaliacoes.json'];
+  return file ? JSON.parse(file.content) : { evaluations: [] };
+}
+
+// ============================================================
+// CSV EXPORT
+// ============================================================
+function exportCSV(evaluations) {
+  const headers = ['Nome','I-Ens(GRAD)','I-Ens(Total)','I-Proj.Ensino','II-Prod.Intelectual','III-1 Pesquisa','III-2 Extensão','IV(1-3) Admin','IV(4) Representação','V-Outras','TOTAL'];
+  const rows = evaluations.map(e => [
+    e.name,
+    e.scores.ENS_GRAD,
+    e.scores.ENS_TOTAL,
+    e.scores.PROJ_ENS,
+    e.scores.PRI,
+    e.scores.PSQ,
+    e.scores.EXT,
+    e.scores.ADM,
+    e.scores.RPT,
+    e.scores.OTR,
+    e.scores.TOTAL,
+  ].join(';'));
+  
+  const csv = [headers.join(';'), ...rows].join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `sicad-avaliacao-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ============================================================
+// REACT APPLICATION
+// ============================================================
+const { useState, useEffect, useRef, useCallback } = React;
+const e = React.createElement;
+
+function App() {
+  const [evaluations, setEvaluations] = useState([]);
+  const [log, setLog] = useState([]);
+  const [processing, setProcessing] = useState(false);
+  const [expanded, setExpanded] = useState(null);
+  const [activeTab, setActiveTab] = useState('ENS');
+  const [showSettings, setShowSettings] = useState(false);
+  const [config, setConfig] = useState(loadConfig());
+  const [syncStatus, setSyncStatus] = useState(null);
+  const fileInputRef = useRef(null);
+  
+  const addLog = useCallback((msg, type='info') => {
+    setLog(prev => [...prev, { msg, type, time: new Date().toLocaleTimeString() }]);
+  }, []);
+  
+  // Load from Gist on mount
+  useEffect(() => {
+    if (config.token && config.gistId) {
+      loadFromGist(config.token, config.gistId)
+        .then(data => {
+          if (data.evaluations && data.evaluations.length) {
+            setEvaluations(data.evaluations);
+            setSyncStatus('loaded');
+          }
+        })
+        .catch(() => setSyncStatus('error'));
+    }
+  }, []);
+  
+  async function handleFiles(files) {
+    setProcessing(true);
+    const newEvals = [];
+    
+    for (const file of files) {
+      if (!file.name.toLowerCase().endsWith('.pdf')) {
+        addLog(`${file.name}: não é PDF, ignorando`, 'warn');
+        continue;
+      }
+      
+      addLog(`Processando: ${file.name}...`, 'info');
+      
+      try {
+        const text = await extractTextFromPDF(file);
+        addLog(`  Texto extraído (${text.length} chars)`, 'ok');
+        
+        const name = parseDocenteName(text);
+        addLog(`  Docente: ${name}`, 'ok');
+        
+        const { items, warnings } = parseItems(text);
+        addLog(`  ${items.length} itens extraídos`, 'ok');
+        
+        warnings.forEach(w => addLog(`  ⚠ ${w}`, 'warn'));
+        
+        const scores = calculateScores(items);
+        addLog(`  Pontuação total (c/ tetos): ${scores.TOTAL}`, 'ok');
+        
+        if (scores.capInfo.length > 0) {
+          addLog(`  ${scores.capInfo.length} tetos aplicados:`, 'warn');
+          scores.capInfo.forEach(ci => {
+            addLog(`    ${ci.group}: ${ci.raw} → ${ci.cap} (${ci.count} itens)`, 'warn');
+          });
+        }
+        
+        newEvals.push({
+          id: Date.now() + '_' + Math.random().toString(36).substr(2,6),
+          name,
+          fileName: file.name,
+          scores,
+          itemCount: items.length,
+          timestamp: new Date().toISOString(),
+        });
+        
+        addLog(`✓ ${name} processado com sucesso`, 'ok');
+        
+      } catch (err) {
+        addLog(`✗ Erro em ${file.name}: ${err.message}`, 'err');
+      }
+    }
+    
+    if (newEvals.length > 0) {
+      setEvaluations(prev => {
+        const updated = [...prev];
+        for (const ne of newEvals) {
+          const idx = updated.findIndex(e => e.name === ne.name);
+          if (idx >= 0) {
+            updated[idx] = ne;
+            addLog(`  Substituiu avaliação anterior de ${ne.name}`, 'warn');
+          } else {
+            updated.push(ne);
+          }
+        }
+        return updated;
+      });
+    }
+    
+    setProcessing(false);
+  }
+  
+  async function handleSync() {
+    if (!config.token) { setShowSettings(true); return; }
+    
+    setSyncStatus('syncing');
+    try {
+      const data = { evaluations, lastSync: new Date().toISOString() };
+      const gistId = await syncToGist(config.token, config.gistId, data);
+      if (!config.gistId) {
+        const newCfg = { ...config, gistId };
+        setConfig(newCfg);
+        saveConfig(newCfg);
+      }
+      setSyncStatus('synced');
+      addLog('Sincronizado com Gist', 'ok');
+    } catch (err) {
+      setSyncStatus('error');
+      addLog(`Erro sync: ${err.message}`, 'err');
+    }
+  }
+  
+  function handleRemoveEval(id) {
+    setEvaluations(prev => prev.filter(e => e.id !== id));
+    if (expanded === id) setExpanded(null);
+  }
+  
+  function handleDrop(evt) {
+    evt.preventDefault();
+    evt.currentTarget.classList.remove('dragover');
+    handleFiles(Array.from(evt.dataTransfer.files));
+  }
+  
+  function handleDragOver(evt) {
+    evt.preventDefault();
+    evt.currentTarget.classList.add('dragover');
+  }
+  
+  function handleDragLeave(evt) {
+    evt.currentTarget.classList.remove('dragover');
+  }
+  
+  // Settings Modal
+  function SettingsModal() {
+    const [token, setToken] = useState(config.token || '');
+    const [gistId, setGistId] = useState(config.gistId || '');
+    
+    return e('div', { className: 'modal-overlay', onClick: () => setShowSettings(false) },
+      e('div', { className: 'modal', onClick: ev => ev.stopPropagation() },
+        e('h3', null, 'Configurações — Gist Sync'),
+        e('label', null, 'GitHub Token (gist scope)'),
+        e('input', { type: 'password', value: token, onChange: ev => setToken(ev.target.value), placeholder: 'ghp_...' }),
+        e('label', null, 'Gist ID (deixe vazio para criar novo)'),
+        e('input', { type: 'text', value: gistId, onChange: ev => setGistId(ev.target.value), placeholder: 'abc123def456...' }),
+        e('div', { className: 'actions' },
+          e('button', { className: 'btn', onClick: () => setShowSettings(false) }, 'Cancelar'),
+          e('button', { className: 'btn btn-primary', onClick: () => {
+            const newCfg = { token, gistId };
+            setConfig(newCfg);
+            saveConfig(newCfg);
+            setShowSettings(false);
+            addLog('Configuração salva', 'ok');
+          }}, 'Salvar'),
+        )
+      )
+    );
+  }
+  
+  // Score pill component
+  function ScorePill({ value, label, color }) {
+    return e('span', { className: 'score-pill', style: { background: color + '15', color: color, border: `1px solid ${color}30` } },
+      `${label}: ${value}`
+    );
+  }
+  
+  // Evaluation detail view
+  function EvalDetail({ evaluation }) {
+    const details = evaluation.scores.details || [];
+    const tabs = [
+      { key: 'ENS', label: 'Ensino' },
+      { key: 'PRI', label: 'Produção' },
+      { key: 'PSQ', label: 'Pesquisa' },
+      { key: 'EXT', label: 'Extensão' },
+      { key: 'ADM', label: 'Admin.' },
+      { key: 'OTR', label: 'Outras' },
+      { key: 'CAPS', label: 'Tetos Aplicados' },
+    ];
+    
+    const filtered = activeTab === 'CAPS'
+      ? []
+      : details.filter(d => {
+          if (activeTab === 'ENS') return d.category === 'ENS' || d.subcategory === 'GRAD' || d.subcategory === 'POS' || d.category === 'PROJ_ENS';
+          return d.category === activeTab;
+        });
+    
+    return e('div', { className: 'eval-detail' },
+      // Breakdown cards
+      e('div', { className: 'breakdown' },
+        [
+          { k: 'ENS_GRAD', l: 'Ensino GRAD', c: '#1a4b8c' },
+          { k: 'ENS_TOTAL', l: 'Ensino TOTAL', c: '#2d5fa0' },
+          { k: 'PROJ_ENS', l: 'Proj. Ensino', c: '#3b7ab8' },
+          { k: 'PRI', l: 'Prod. Intelectual', c: '#7a3b8c' },
+          { k: 'PSQ', l: 'Pesquisa', c: '#2d7a3a' },
+          { k: 'EXT', l: 'Extensão', c: '#b36b1a' },
+          { k: 'ADM', l: 'Administrativo', c: '#8c3b3b' },
+          { k: 'RPT', l: 'Representação', c: '#3b6b8c' },
+          { k: 'OTR', l: 'Outras', c: '#5a5a5a' },
+        ].map(({ k, l, c }) =>
+          e('div', { key: k, className: 'breakdown-card', style: { borderColor: c, background: c + '08' } },
+            e('h4', null, l),
+            e('div', { className: 'value', style: { color: c } }, evaluation.scores[k]),
+          )
+        )
+      ),
+      
+      // Tabs
+      e('div', { className: 'tabs' },
+        tabs.map(t => e('div', {
+          key: t.key,
+          className: `tab ${activeTab === t.key ? 'active' : ''}`,
+          onClick: () => setActiveTab(t.key)
+        }, t.label))
+      ),
+      
+      // Cap info tab
+      activeTab === 'CAPS' && evaluation.scores.capInfo.length > 0 &&
+        e('table', { className: 'items-table' },
+          e('thead', null, e('tr', null,
+            e('th', null, 'Grupo'),
+            e('th', null, 'Itens'),
+            e('th', null, 'Valor Bruto'),
+            e('th', null, 'Teto'),
+            e('th', null, 'Valor Efetivo'),
+            e('th', null, 'Redução'),
+          )),
+          e('tbody', null,
+            evaluation.scores.capInfo.map((ci, i) =>
+              e('tr', { key: i },
+                e('td', { className: 'item-code' }, ci.group),
+                e('td', null, ci.count),
+                e('td', null, ci.raw),
+                e('td', { className: 'cap-hit' }, ci.cap),
+                e('td', null, ci.effective),
+                e('td', { style: { color: 'var(--red)' } }, `-${(ci.raw - ci.effective).toFixed(2)}`),
+              )
+            )
+          )
+        ),
+      
+      activeTab === 'CAPS' && evaluation.scores.capInfo.length === 0 &&
+        e('p', { style: { color: 'var(--text-muted)', padding: '20px 0' } }, 'Nenhum teto aplicado.'),
+      
+      // Items table
+      activeTab !== 'CAPS' && filtered.length > 0 &&
+        e('table', { className: 'items-table' },
+          e('thead', null, e('tr', null,
+            e('th', null, 'Código'),
+            e('th', null, 'Descrição'),
+            e('th', null, 'Detalhe'),
+            e('th', null, 'SICAD'),
+            e('th', null, 'Calculado'),
+            e('th', null, 'Status'),
+          )),
+          e('tbody', null,
+            filtered.map((d, i) => {
+              const desc = d.ruleName || d.code;
+              const detail = d.componente || d.titulo || d.portaria || d.discente || '';
+              const match = d.sicadPts !== null && Math.abs(d.sicadPts - d.calculated) < 0.02;
+              return e('tr', { key: i },
+                e('td', { className: 'item-code' }, d.code),
+                e('td', null, desc),
+                e('td', { style: { maxWidth: '250px', fontSize: '12px', color: 'var(--text-secondary)' } }, detail.substring(0, 80)),
+                e('td', { className: 'mono', style: { textAlign: 'right' } }, d.sicadPts !== null ? d.sicadPts : '—'),
+                e('td', { className: 'mono', style: { textAlign: 'right', fontWeight: 600 } }, d.calculated),
+                e('td', null,
+                  d.capHit
+                    ? e('span', { className: 'cap-hit', title: `Teto ${d.capMax} aplicado ao grupo ${d.capGroup}` }, '⚠ TETO')
+                    : d.sicadPts !== null
+                      ? (match
+                          ? e('span', { style: { color: 'var(--green)' } }, '✓')
+                          : e('span', { style: { color: 'var(--orange)' } }, '≠'))
+                      : ''
+                ),
+              );
+            })
+          )
+        ),
+      
+      activeTab !== 'CAPS' && filtered.length === 0 &&
+        e('p', { style: { color: 'var(--text-muted)', padding: '20px 0' } }, 'Nenhum item nesta categoria.'),
+    );
+  }
+  
+  // Summary table
+  function SummaryTable() {
+    if (evaluations.length === 0) return null;
+    
+    const cols = [
+      { key: 'ENS_GRAD', label: 'I-Ens\n(GRAD)' },
+      { key: 'ENS_TOTAL', label: 'I-Ens\n(Total)' },
+      { key: 'PROJ_ENS', label: 'I-Proj.\nEnsino' },
+      { key: 'PRI', label: 'II-Prod.\nIntelectual' },
+      { key: 'PSQ', label: 'III-1\nPesquisa' },
+      { key: 'EXT', label: 'III-2\nExtensão' },
+      { key: 'ADM', label: 'IV(1-3)\nAdmin.' },
+      { key: 'RPT', label: 'IV(4)\nRepres.' },
+      { key: 'OTR', label: 'V-Outras\nAtiv.' },
+      { key: 'TOTAL', label: 'TOTAL' },
+    ];
+    
+    return e('div', { className: 'summary-section' },
+      e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } },
+        e('h2', null, 'Resultado Final — Com Tetos Aplicados'),
+        e('div', { style: { display: 'flex', gap: 8 } },
+          e('button', { className: 'btn btn-sm', onClick: () => exportCSV(evaluations) }, '⬇ Exportar CSV'),
+        )
+      ),
+      e('div', { style: { overflowX: 'auto' } },
+        e('table', { className: 'summary-table' },
+          e('thead', null, e('tr', null,
+            e('th', { style: { textAlign: 'left', minWidth: 160 } }, 'Nome'),
+            ...cols.map(c => e('th', { key: c.key, className: c.key === 'TOTAL' ? 'total-col' : '', style: { whiteSpace: 'pre-line' } }, c.label))
+          )),
+          e('tbody', null,
+            evaluations
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map(ev => e('tr', { key: ev.id },
+                e('td', null, ev.name),
+                ...cols.map(c => e('td', {
+                  key: c.key,
+                  className: c.key === 'TOTAL' ? 'total-col' : '',
+                }, ev.scores[c.key]))
+              ))
+          )
+        )
+      )
+    );
+  }
+  
+  // Main render
+  return e('div', null,
+    // Header
+    e('header', null,
+      e('div', { className: 'container inner' },
+        e('h1', null, 'SICAD Avaliador ', e('span', null, '— CONSUNI 18/2017')),
+        e('div', { className: 'header-actions' },
+          syncStatus && e('span', { style: { fontSize: 12, color: 'var(--text-muted)' } },
+            syncStatus === 'synced' ? '● Sincronizado' :
+            syncStatus === 'syncing' ? '○ Sincronizando...' :
+            syncStatus === 'loaded' ? '● Carregado do Gist' : '● Erro sync'
+          ),
+          e('button', { className: 'btn btn-sm', onClick: handleSync }, '↑ Sync Gist'),
+          e('button', { className: 'btn btn-sm', onClick: () => setShowSettings(true) }, '⚙'),
+        )
+      )
+    ),
+    
+    e('div', { className: 'container' },
+      // Upload Zone
+      e('div', {
+        className: 'upload-zone',
+        onDrop: handleDrop,
+        onDragOver: handleDragOver,
+        onDragLeave: handleDragLeave,
+        onClick: () => fileInputRef.current?.click(),
+      },
+        e('input', {
+          ref: fileInputRef,
+          type: 'file',
+          accept: '.pdf',
+          multiple: true,
+          onChange: (ev) => handleFiles(Array.from(ev.target.files)),
+        }),
+        e('h3', null, processing ? 'Processando...' : 'Arraste PDFs do SICAD aqui'),
+        e('p', null, 'ou clique para selecionar · aceita múltiplos arquivos'),
+      ),
+      
+      // Processing Log
+      log.length > 0 && e('div', { className: 'log' },
+        log.map((l, i) => e('div', { key: i, className: l.type },
+          e('span', { style: { opacity: 0.5 } }, `[${l.time}] `), l.msg
+        ))
+      ),
+      
+      // Evaluations
+      evaluations.length > 0 && e('div', { style: { marginTop: 16 } },
+        e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } },
+          e('h2', { style: { fontSize: 16 } }, `${evaluations.length} avaliação(ões)`),
+          e('button', { className: 'btn btn-sm btn-danger', onClick: () => { setEvaluations([]); setExpanded(null); }}, 'Limpar tudo'),
+        ),
+        evaluations.map(ev =>
+          e('div', { key: ev.id, className: 'eval-card' },
+            e('div', { className: 'eval-header', onClick: () => setExpanded(expanded === ev.id ? null : ev.id) },
+              e('div', null,
+                e('span', { className: 'eval-name' }, ev.name,
+                  e('small', null, `${ev.itemCount} itens · ${ev.fileName}`)
+                ),
+              ),
+              e('div', { className: 'eval-scores' },
+                e(ScorePill, { value: ev.scores.ENS_TOTAL, label: 'ENS', color: '#1a4b8c' }),
+                e(ScorePill, { value: ev.scores.PRI, label: 'PRI', color: '#7a3b8c' }),
+                e(ScorePill, { value: ev.scores.TOTAL, label: 'TOTAL', color: '#333' }),
+                e('button', {
+                  className: 'btn btn-sm btn-danger',
+                  onClick: (evt) => { evt.stopPropagation(); handleRemoveEval(ev.id); },
+                  style: { marginLeft: 8 },
+                }, '✕'),
+              ),
+            ),
+            expanded === ev.id && e(EvalDetail, { evaluation: ev }),
+          )
+        ),
+      ),
+      
+      // Summary Table
+      e(SummaryTable),
+    ),
+    
+    // Footer
+    e('footer', null,
+      'SICAD Avaliador · Resolução CONSUNI 18/2017 · UFG',
+    ),
+    
+    // Settings Modal
+    showSettings && e(SettingsModal),
+  );
+}
+
+// Mount
+ReactDOM.render(e(App), document.getElementById('root'));
+</script>
+</body>
+</html>
