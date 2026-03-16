@@ -254,7 +254,7 @@ header h1 span { color: var(--text-muted); font-weight: 400; }
   font-weight: 500;
 }
 .summary-table tr:nth-child(even) { background: var(--surface-alt); }
-.summary-table .total-col { background: var(--accent-light); font-weight: 700; }
+.summary-table .total-col { background: var(--accent-light); font-weight: 700; color: var(--accent); }
 
 /* Score Breakdown */
 .breakdown {
@@ -616,7 +616,14 @@ const CATEGORIES = {
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 function normalizeCode(raw) {
-  return raw.replace(/\s+/g, '').replace(/–/g, '-').replace(/—/g, '-').trim();
+  let code = raw.replace(/\s+/g, '').replace(/–/g, '-').replace(/—/g, '-').trim();
+  // Try exact match first
+  if (RULES[code]) return code;
+  // Handle cases like IV-4.5 → IV-4-5 (PDF uses dot but RULES uses dash)
+  // Only convert dots to dashes if the code has exactly 3 segments (X-N.N not X-N-N.N)
+  const dotVariant = code.replace(/\./g, '-');
+  if (RULES[dotVariant]) return dotVariant;
+  return code; // return as-is, will be flagged as unknown
 }
 
 async function extractTextFromPDF(file) {
@@ -632,11 +639,20 @@ async function extractTextFromPDF(file) {
   return fullText;
 }
 
-function parseDocenteName(text) {
-  const m = text.match(/Relat[óo]rio\s+do\s+docente\s+([A-ZÁÀÂÃÉÈÊÍÏÓÔÕÚÜÇ\s]+)\s*\(/i);
-  if (m) return m[1].trim();
-  const m2 = text.match(/Nome:\s*([A-Za-záàâãéèêíïóôõúüçÁÀÂÃÉÈÊÍÏÓÔÕÚÜÇ\s]+?)(?:\s+E-mail:|\s+Dados)/i);
-  return m2 ? m2[1].trim() : 'Docente Desconhecido';
+function parseDocenteInfo(text) {
+  // Extract name from "Nome:" field
+  const nameMatch = text.match(/Nome:\s*([A-Za-záàâãéèêíïóôõúüçÁÀÂÃÉÈÊÍÏÓÔÕÚÜÇ\s]+?)(?:\s+Celular:|\s+E-mail:|\s+Telefone:|\s+Dados)/i);
+  const name = nameMatch ? nameMatch[1].trim() : 'Docente Desconhecido';
+  
+  // Extract regime — match specific known values right after the label
+  let regime = 'DE'; // default
+  if (/Regime\s+de\s+Trabalho:\s*20/i.test(text)) {
+    regime = '20H';
+  } else if (/Regime\s+de\s+Trabalho:\s*Dedica/i.test(text) || /Regime\s+de\s+Trabalho:\s*40/i.test(text)) {
+    regime = 'DE';
+  }
+  
+  return { name, regime };
 }
 
 function parseItems(text) {
@@ -644,8 +660,7 @@ function parseItems(text) {
   const warnings = [];
   
   // Find all "Item da Resolução:" positions with robust code capture
-  // Captures codes like "I-1-1", "II-1-5.3", "II - 3 - 11", "II - 3 - 12.3", "IV-2-6.1"
-  const codeRegex = /Item\s+da\s+Resolu[çc][ãa]o[:\s]*([IVX]+\s*[-–—]\s*\d+\s*[-–—]\s*\d+(?:\.\d+)?)/gi;
+  const codeRegex = /Item\s+da\s+Resolu[çc][ãa]o[:\s]*([IVX\d.\-]+)/gi;
   let match;
   const positions = [];
   
@@ -680,8 +695,15 @@ function parseItems(text) {
     };
     
     // Extract CH Total Alocada (for teaching items)
-    const chMatch = block.match(/CH\s+Total\s+Alocada:\s*([\d.,]+)/i);
-    if (chMatch) item.chTotal = parseFloat(chMatch[1].replace(',','.'));
+    // Graduação: "CH Total Alocada: 64"  |  Pós-graduação: "Carga Horária Total Alocada: 32"
+    // PDF.js sometimes splits accented chars, so use flexible match
+    let chMatch = block.match(/CH\s+Total\s+Alocada:\s*([\d.,]+)/i);
+    if (!chMatch) chMatch = block.match(/Carga\s+Hor.{0,10}ria\s+Total\s+Alocada:\s*([\d.,]+)/i);
+    // Ultimate fallback: any "Total Alocada:" near "Carga" 
+    if (!chMatch) chMatch = block.match(/Carga[^:]*Total\s+Alocada:\s*([\d.,]+)/i);
+    if (chMatch) {
+      item.chTotal = parseFloat(chMatch[1].replace(',','.'));
+    }
     
     // Extract Tempo de Atuação (months)
     const tempoMatch = block.match(/Tempo\s+de\s+Atua[çc][ãa]o\s+em\s+\d{4}\s*\(Meses\):\s*([\d.,]+)/i);
@@ -718,6 +740,19 @@ function parseItems(text) {
     // Extract portaria
     const portMatch = block.match(/Portaria:\s*([^\n]+)/i);
     if (portMatch) item.portaria = portMatch[1].trim();
+    
+    // Exclude Pós-Graduação Lato Sensu items (should not be counted)
+    // IMPORTANT: Check Nível field specifically, not the whole block,
+    // because long blocks may contain the "I-2 Pós-Graduação Latu Sensu" section header
+    if (code.startsWith('I-2')) {
+      const nivelText = block.match(/N[íi]vel:\s*([^A-Z]{0,60})/i);
+      const isLato = nivelText && /Latu|Lato/i.test(nivelText[1]);
+      const isStricto = nivelText && /Stricto/i.test(nivelText[1]);
+      if (isLato && !isStricto) {
+        warnings.push(`Item ${code} excluído: Pós-Graduação Lato Sensu não pontua`);
+        continue;
+      }
+    }
     
     // Validate code against rules
     if (!RULES[code]) {
@@ -855,6 +890,37 @@ function calculateScores(items) {
 }
 
 // ============================================================
+// APPROVAL CALCULATION
+// ============================================================
+function calculateApproval(scores, regime, thresholdDE, threshold20) {
+  const has = Math.round((scores.ENS_TOTAL / 10) * 100) / 100; // weekly teaching hours
+  const prod = Math.round((scores.PROJ_ENS + scores.PRI + scores.PSQ + scores.EXT + scores.ADM + scores.RPT + scores.OTR) * 100) / 100;
+  
+  if (prod === 0 && has === 0) {
+    return { status: '--', has, prod };
+  }
+  
+  if (regime === '20H') {
+    const T = threshold20;
+    if (!T || T <= 0) return { status: 'Defina limiar 20H', has, prod };
+    if (has < 8) return { status: 'REPROVADO (min LDB)', has, prod };
+    if (has >= 10) return { status: 'APROVADO (CH>=10)', has, prod };
+    if (prod >= 1.2 * T && has >= 8) return { status: 'APROVADO (PROD e 8H)', has, prod };
+    if (prod >= 0.2 * T * (14 - has)) return { status: 'APROVADO (reta PRODxCH)', has, prod };
+    return { status: 'REPROVADO (reta PRODxCH)', has, prod };
+  } else {
+    // DE or 40H
+    const T = thresholdDE;
+    if (!T || T <= 0) return { status: 'Defina limiar DE/40H', has, prod };
+    if (has < 8) return { status: 'REPROVADO (min LDB)', has, prod };
+    if (has >= 16) return { status: 'APROVADO (CH>=16)', has, prod };
+    if (prod >= (16 / 12) * (1.05 * T) && has >= 8) return { status: 'APROVADO (PROD e 8H)', has, prod };
+    if (prod >= (1.05 * T) * (24 - has) / 12) return { status: 'APROVADO (reta PRODxCH)', has, prod };
+    return { status: 'REPROVADO (reta PRODxCH)', has, prod };
+  }
+}
+
+// ============================================================
 // GIST SYNC MODULE
 // ============================================================
 const GIST_STORAGE_KEY = 'sicad_avaliador_config';
@@ -906,21 +972,28 @@ async function loadFromGist(token, gistId) {
 // ============================================================
 // CSV EXPORT
 // ============================================================
-function exportCSV(evaluations) {
-  const headers = ['Nome','I-Ens(GRAD)','I-Ens(Total)','I-Proj.Ensino','II-Prod.Intelectual','III-1 Pesquisa','III-2 Extensão','IV(1-3) Admin','IV(4) Representação','V-Outras','TOTAL'];
-  const rows = evaluations.map(e => [
-    e.name,
-    e.scores.ENS_GRAD,
-    e.scores.ENS_TOTAL,
-    e.scores.PROJ_ENS,
-    e.scores.PRI,
-    e.scores.PSQ,
-    e.scores.EXT,
-    e.scores.ADM,
-    e.scores.RPT,
-    e.scores.OTR,
-    e.scores.TOTAL,
-  ].join(';'));
+function exportCSV(evaluations, thresholdDE, threshold20) {
+  const headers = ['Nome','Regime','I-Ens(GRAD)','I-Ens(Total)','I-Proj.Ensino','II-Prod.Intelectual','III-1 Pesquisa','III-2 Extensão','IV(1-3) Admin','IV(4) Representação','V-Outras','TOTAL','Prod(exceto aulas)','HAS','Resultado'];
+  const rows = evaluations.map(ev => {
+    const approval = calculateApproval(ev.scores, ev.regime, thresholdDE, threshold20);
+    return [
+      ev.name,
+      ev.regime,
+      ev.scores.ENS_GRAD,
+      ev.scores.ENS_TOTAL,
+      ev.scores.PROJ_ENS,
+      ev.scores.PRI,
+      ev.scores.PSQ,
+      ev.scores.EXT,
+      ev.scores.ADM,
+      ev.scores.RPT,
+      ev.scores.OTR,
+      ev.scores.TOTAL,
+      approval.prod,
+      approval.has,
+      approval.status,
+    ].join(';');
+  });
   
   const csv = [headers.join(';'), ...rows].join('\n');
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
@@ -947,6 +1020,8 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [config, setConfig] = useState(loadConfig());
   const [syncStatus, setSyncStatus] = useState(null);
+  const [thresholdDE, setThresholdDE] = useState(parseFloat(localStorage.getItem('sicad_threshold_de') || '0'));
+  const [threshold20, setThreshold20] = useState(parseFloat(localStorage.getItem('sicad_threshold_20') || '0'));
   const fileInputRef = useRef(null);
   
   const addLog = useCallback((msg, type='info') => {
@@ -983,8 +1058,8 @@ function App() {
         const text = await extractTextFromPDF(file);
         addLog(`  Texto extraído (${text.length} chars)`, 'ok');
         
-        const name = parseDocenteName(text);
-        addLog(`  Docente: ${name}`, 'ok');
+        const { name, regime } = parseDocenteInfo(text);
+        addLog(`  Docente: ${name} (${regime})`, 'ok');
         
         const { items, warnings } = parseItems(text);
         addLog(`  ${items.length} itens extraídos`, 'ok');
@@ -1004,6 +1079,7 @@ function App() {
         newEvals.push({
           id: Date.now() + '_' + Math.random().toString(36).substr(2,6),
           name,
+          regime,
           fileName: file.name,
           scores,
           itemCount: items.length,
@@ -1249,25 +1325,43 @@ function App() {
       e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } },
         e('h2', null, 'Resultado Final — Com Tetos Aplicados'),
         e('div', { style: { display: 'flex', gap: 8 } },
-          e('button', { className: 'btn btn-sm', onClick: () => exportCSV(evaluations) }, '⬇ Exportar CSV'),
+          e('button', { className: 'btn btn-sm', onClick: () => exportCSV(evaluations, thresholdDE, threshold20) }, '⬇ Exportar CSV'),
         )
       ),
       e('div', { style: { overflowX: 'auto' } },
         e('table', { className: 'summary-table' },
           e('thead', null, e('tr', null,
             e('th', { style: { textAlign: 'left', minWidth: 160 } }, 'Nome'),
-            ...cols.map(c => e('th', { key: c.key, className: c.key === 'TOTAL' ? 'total-col' : '', style: { whiteSpace: 'pre-line' } }, c.label))
+            e('th', null, 'Regime'),
+            ...cols.map(c => e('th', { key: c.key, className: c.key === 'TOTAL' ? 'total-col' : '', style: { whiteSpace: 'pre-line' } }, c.label)),
+            e('th', { style: { whiteSpace: 'pre-line' } }, 'Prod\n(s/ aulas)'),
+            e('th', null, 'HAS'),
+            e('th', { style: { minWidth: 140 } }, 'Resultado'),
           )),
           e('tbody', null,
             evaluations
               .sort((a, b) => a.name.localeCompare(b.name))
-              .map(ev => e('tr', { key: ev.id },
-                e('td', null, ev.name),
-                ...cols.map(c => e('td', {
-                  key: c.key,
-                  className: c.key === 'TOTAL' ? 'total-col' : '',
-                }, ev.scores[c.key]))
-              ))
+              .map(ev => {
+                const approval = calculateApproval(ev.scores, ev.regime, thresholdDE, threshold20);
+                const isApproved = approval.status.startsWith('APROVADO');
+                const isReprovado = approval.status.startsWith('REPROVADO');
+                return e('tr', { key: ev.id },
+                  e('td', null, ev.name),
+                  e('td', { style: { textAlign: 'center', fontSize: 11 } }, ev.regime),
+                  ...cols.map(c => e('td', {
+                    key: c.key,
+                    className: c.key === 'TOTAL' ? 'total-col' : '',
+                  }, ev.scores[c.key])),
+                  e('td', null, approval.prod),
+                  e('td', null, approval.has),
+                  e('td', { style: {
+                    fontWeight: 600,
+                    fontSize: 11,
+                    color: isApproved ? 'var(--green)' : isReprovado ? 'var(--red)' : 'var(--text-muted)',
+                    background: isApproved ? 'var(--green-bg)' : isReprovado ? 'var(--red-bg)' : 'transparent',
+                  }}, approval.status),
+                );
+              })
           )
         )
       )
@@ -1293,6 +1387,30 @@ function App() {
     ),
     
     e('div', { className: 'container' },
+      // Threshold Inputs — always visible
+      e('div', { style: { display: 'flex', gap: 16, margin: '20px 0 0 0', padding: '12px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, alignItems: 'center', flexWrap: 'wrap' } },
+        e('span', { style: { fontSize: 13, fontWeight: 600, color: 'var(--accent)' } }, 'Limiares de Aprovação:'),
+        e('label', { style: { fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 } },
+          'DE/40H:',
+          e('input', {
+            type: 'number', step: '0.01', value: thresholdDE || '',
+            placeholder: 'valor médio',
+            style: { width: 90, padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 4, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 },
+            onChange: (ev) => { const v = parseFloat(ev.target.value) || 0; setThresholdDE(v); localStorage.setItem('sicad_threshold_de', String(v)); },
+          })
+        ),
+        e('label', { style: { fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 } },
+          '20H:',
+          e('input', {
+            type: 'number', step: '0.01', value: threshold20 || '',
+            placeholder: 'valor médio',
+            style: { width: 90, padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 4, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 },
+            onChange: (ev) => { const v = parseFloat(ev.target.value) || 0; setThreshold20(v); localStorage.setItem('sicad_threshold_20', String(v)); },
+          })
+        ),
+        e('span', { style: { fontSize: 11, color: 'var(--text-muted)' } }, 'Insira os valores antes de processar os PDFs'),
+      ),
+      
       // Upload Zone
       e('div', {
         className: 'upload-zone',
