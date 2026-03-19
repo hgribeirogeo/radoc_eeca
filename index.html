@@ -424,12 +424,271 @@ footer {
   .chart-grid { grid-template-columns: 1fr; }
 }
 
+
+/* ── Áreas ── */
+.areas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+  margin: 0 0 24px 0;
+}
+.area-upload {
+  border: 2px dashed var(--border);
+  border-radius: 6px;
+  padding: 14px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--surface);
+  position: relative;
+}
+.area-upload:hover, .area-upload.dragover {
+  border-color: var(--area-color, var(--accent));
+  background: color-mix(in srgb, var(--area-color, var(--accent)) 8%, white);
+}
+.area-upload h4 {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 3px;
+  color: var(--area-color, var(--accent));
+}
+.area-upload p { font-size: 11px; color: var(--text-muted); }
+.area-upload input[type="file"] { display: none; }
+.area-count {
+  position: absolute;
+  top: 6px; right: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: 'IBM Plex Mono', monospace;
+  background: var(--area-color, var(--accent));
+  color: white;
+  border-radius: 10px;
+  padding: 1px 6px;
+}
+.area-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 3px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.area-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin: 16px 0 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.area-section-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+
+/* ── Linha de médias ── */
+.avg-row td {
+  background: #f0f4fa !important;
+  font-weight: 700;
+  font-size: 12px;
+  border-top: 2px solid #93aad4;
+  color: var(--accent);
+}
+.avg-row td:first-child {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+.pct-cell {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+.pct-high { color: var(--green); }
+.pct-mid  { color: var(--orange); }
+.pct-low  { color: var(--red); }
+
+
+/* ── Dashboard de gestão ── */
+.dashboard-section {
+  margin: 32px 0 8px 0;
+}
+.dashboard-section h2 {
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+.dashboard-section .subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+}
+/* KPI cards */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  border-top: 3px solid var(--kpi-color, var(--accent));
+}
+.kpi-card .kpi-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.kpi-card .kpi-value {
+  font-size: 26px;
+  font-weight: 700;
+  font-family: 'IBM Plex Mono', monospace;
+  color: var(--kpi-color, var(--accent));
+  line-height: 1;
+}
+.kpi-card .kpi-sub {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+/* Chart grid for dashboard */
+.dash-charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.dash-chart-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+.dash-chart-box h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.dash-chart-box p {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+.dash-chart-full {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.dash-chart-full h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.dash-chart-full p {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+@media (max-width: 800px) {
+  .dash-charts-grid { grid-template-columns: 1fr; }
+}
+
+
+/* ── Gerador de relatório ── */
+.report-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--accent);
+  border-radius: 8px;
+}
+.report-bar label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.report-bar select {
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 13px;
+  background: var(--surface-alt);
+  color: var(--text);
+  min-width: 230px;
+}
+.report-bar .hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  flex: 1;
+}
+.btn-report {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 0.2s;
+}
+.btn-report:hover { opacity: 0.85; }
+.btn-report:disabled { opacity: 0.45; cursor: not-allowed; }
+.report-spinner {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
 </style>
 </head>
 <body>
 <div id="root"></div>
 
 <script>
+
+// ── Áreas da unidade ────────────────────────────────────────────────
+const AREAS = [
+  { id: 'civil',     label: 'Construção Civil',           color: '#1a4b8c' },
+  { id: 'estrut',    label: 'Estruturas',                 color: '#7a3b8c' },
+  { id: 'geotec',    label: 'Geotecnia',                  color: '#2d7a3a' },
+  { id: 'gestao',    label: 'Gestão e Geomática',         color: '#b36b1a' },
+  { id: 'hidro',     label: 'Hidráulica e Saneamento',    color: '#8c3b3b' },
+];
+const AREA_ALL = 'all';
+
 // ============================================================
 // SCORING RULES ENGINE — CONSUNI 18/2017 Anexo II
 // ============================================================
@@ -742,15 +1001,66 @@ async function extractTextFromPDF(file) {
   return fullText;
 }
 
-function parseDocenteInfo(text) {
-  const nameMatch = text.match(/Nome:\s*([A-Za-záàâãéèêíïóôõúüçÁÀÂÃÉÈÊÍÏÓÔÕÚÜÇ\s]+?)(?:\s+Celular:|\s+E-mail:|\s+Telefone:|\s+Dados)/i);
-  const name = nameMatch ? nameMatch[1].trim() : 'Docente Desconhecido';
+function parseDocenteInfo(text, fileName) {
+  // Função auxiliar: normaliza espaços extras que PDF.js pode gerar
+  // entre palavras (ex: "Andre   Lima" → "Andre Lima")
+  function norm(s) { return s ? s.replace(/\s+/g, ' ').trim() : ''; }
 
+  const candidates = [];
+
+  // S1: cabeçalho "Relatório do docente NAME - SIAPE"
+  // PDF.js pode gerar espaços extras no nome → norm() resolve
+  const m1 = text.match(/Relat[oó]rio\s+(?:do\s+)?[Dd]ocente\s+(.+?)(?=\s*[-\u2013\u2014]\s*\d{4,})/i);
+  if (m1) candidates.push(norm(m1[1]));
+
+  // S2: campo "Nome:" — terminadores APENAS por palavras-chave conhecidas ou quebra de linha.
+  // NÃO usar \s{N,} como terminador: PDF.js pode inserir múltiplos espaços
+  // no meio do nome (posicionamento de texto), o que truncaria em "primeiro nome".
+  const m2 = text.match(/Nome:\s*([\w\s\-\.'\`áàâãéèêíïóôõúüçÁÀÂÃÉÈÊÍÏÓÔÕÚÜÇ]+?)(?=\s+(?:Celular|E-mail|Telefone|Matr[íi]cula|SIAPE|Dados|Cargo|Classe|Regime|Situa[çc][ãa]o|Data\s+de)[^\w]|[\r\n]|$)/i);
+  if (m2) candidates.push(norm(m2[1]));
+
+  // S3: campo "Nome:" com lista ainda mais ampla de terminadores conhecidos
+  const m3 = text.match(/Nome:\s*([\w\s\-\.'\`áàâãéèêíïóôõúüçÁÀÂÃÉÈÊÍÏÓÔÕÚÜÇ]+?)(?=\s+(?:Celular|E-mail|Telefone|Fone|CPF|Matr[íi]cula|SIAPE|Cargo|Classe|N[íi]vel|Regime|Lotação|Situa[çc][ãa]o)[^\w]|[\r\n]|$)/i);
+  if (m3) candidates.push(norm(m3[1]));
+
+  // S4: variante "Servidor:" ou "Docente:" (algumas unidades)
+  const m4 = text.match(/(?:Servidor|Docente):\s*([\w\s\-\.áàâãéèêíïóôõúüçÁÀÂÃÉÈÊÍÏÓÔÕÚÜÇ]+?)(?=\s+(?:Matr|SIAPE|Celular|E-mail|\d{4,})|[\r\n])/i);
+  if (m4) candidates.push(norm(m4[1]));
+
+  // Filtra candidatos inválidos
+  const valid = candidates.filter(c => c && c.length >= 3 && !/^\d+$/.test(c));
+
+  // Escolhe o candidato com MAIS PALAVRAS (nome mais completo)
+  let name = null;
+  if (valid.length > 0) {
+    name = valid.reduce((best, cur) =>
+      cur.split(' ').length > best.split(' ').length ? cur : best
+    );
+  }
+
+  // S5: fallback — nome extraído do nome do arquivo
+  if (!name) {
+    if (fileName) {
+      const fn = fileName
+        .replace(/\.pdf$/i, '')
+        .replace(/[-_]\d{4,}.*$/, '')
+        .replace(/[_\-]/g, ' ')
+        .replace(/\d+/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (fn.length > 2) name = fn;
+    }
+  }
+
+  name = (name || 'Docente Desconhecido').trim();
+
+  // ── Regime ───────────────────────────────────────────────────────────────
   let regime = 'DE';
   if (/Regime\s+de\s+Trabalho:\s*20/i.test(text)) {
     regime = '20H';
-  } else if (/Regime\s+de\s+Trabalho:\s*Dedica/i.test(text) || /Regime\s+de\s+Trabalho:\s*40/i.test(text)) {
-    regime = 'DE';
+  } else if (/20\s*(?:horas?|h\b)/i.test(text.substring(0, 2000)) &&
+             !/Dedica/i.test(text.substring(0, 2000))) {
+    regime = '20H';
   }
 
   return { name, regime };
@@ -972,6 +1282,9 @@ function calculateScores(items) {
   }
   results.ENS_TOTAL = Math.round((results.ENS_GRAD + results.ENS_POS) * 100) / 100;
   results.TOTAL = Math.round((results.ENS_TOTAL + results.PROJ_ENS + results.PRI + results.PSQ + results.EXT + results.ADM + results.RPT + results.OTR) * 100) / 100;
+  // TOTAL_RAW: soma de todos os grupos SEM aplicar tetos (= como o RADOC reporta)
+  const rawGroupTotal = Object.values(groups).reduce((s, g) => s + g.totalRaw, 0);
+  results.TOTAL_RAW = Math.round((rawGroupTotal) * 100) / 100;
 
   return results;
 }
@@ -1067,14 +1380,17 @@ function exportCSV(evaluations, thresholdDE, threshold20) {
     if (has >= 16) return 0;
     return Math.ceil((1.05*T)*(24-has)/12);
   }
-  const headers = ['Nome','Regime','I-Ens(GRAD)','I-Ens(Total)','I-Proj.Ensino','II-Prod.Intelectual','III-1 Pesquisa','III-2 Extensão','IV(1-3) Admin','IV(4) Representação','V-Outras','TOTAL','Prod(exceto aulas)','HAS','Resultado','HAS necessário','Produção necessária'];
+  const headers = ['Nome','Área','Regime','I-Ens(GRAD)','I-Ens(Total)','I-Proj.Ensino','II-Prod.Intelectual','III-1 Pesquisa','III-2 Extensão','IV(1-3) Admin','IV(4) Representação','V-Outras','Total RADOC','Total (c/ Teto)','Prod(exceto aulas)','HAS','%(Teto/RADOC)','Resultado','HAS necessário','Produção necessária'];
   const rows = evaluations.map(ev => {
     const isDE     = ev.regime !== '20H';
     const T        = isDE ? thresholdDE : threshold20;
     const approval = calculateApproval(ev.scores, ev.regime, thresholdDE, threshold20);
     const hasNeed  = hasNecCSV(approval.prod, T, !isDE);
     const prodNeed = prodNecCSV(approval.has,  T, !isDE);
-    return [ev.name,ev.regime,ev.scores.ENS_GRAD,ev.scores.ENS_TOTAL,ev.scores.PROJ_ENS,ev.scores.PRI,ev.scores.PSQ,ev.scores.EXT,ev.scores.ADM,ev.scores.RPT,ev.scores.OTR,ev.scores.TOTAL,approval.prod,approval.has,approval.status,hasNeed,prodNeed].join(';');
+    const pct = ev.scores.TOTAL_RAW > 0 ? Math.round(ev.scores.TOTAL/ev.scores.TOTAL_RAW*100)+'%' : '—';
+    const area = ev.area === AREA_ALL ? '—' : (AREAS.find(a=>a.id===ev.area)||{label:ev.area}).label;
+    const statusLabel = approval.status.replace('REPROVADO','Meta não Atingida').replace('Reprovado','Meta não Atingida');
+    return [ev.name,area,ev.regime,ev.scores.ENS_GRAD,ev.scores.ENS_TOTAL,ev.scores.PROJ_ENS,ev.scores.PRI,ev.scores.PSQ,ev.scores.EXT,ev.scores.ADM,ev.scores.RPT,ev.scores.OTR,ev.scores.TOTAL_RAW,ev.scores.TOTAL,approval.prod,approval.has,pct,statusLabel,hasNeed,prodNeed].join(';');
   });
   const csv = [headers.join(';'), ...rows].join('\n');
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
@@ -1099,9 +1415,13 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [config, setConfig] = useState(loadConfig());
   const [syncStatus, setSyncStatus] = useState(null);
+  const [areaFilter, setAreaFilter] = useState(AREA_ALL);
   const [thresholdDE, setThresholdDE] = useState(parseFloat(localStorage.getItem('sicad_threshold_de') || '0'));
   const [threshold20, setThreshold20] = useState(parseFloat(localStorage.getItem('sicad_threshold_20') || '0'));
-  const fileInputRef = useRef(null);
+  const fileInputRef   = useRef(null);
+  const [reportArea, setReportArea]       = useState(AREA_ALL);
+  const [reportLoading, setReportLoading] = useState(false);
+  const areaRefs    = useRef({});
 
   const addLog = useCallback((msg, type='info') => {
     setLog(prev => [...prev, { msg, type, time: new Date().toLocaleTimeString() }]);
@@ -1120,7 +1440,7 @@ function App() {
     }
   }, []);
 
-  async function handleFiles(files) {
+  async function handleFiles(files, area) {
     setProcessing(true);
     const newEvals = [];
 
@@ -1133,7 +1453,7 @@ function App() {
       try {
         const text = await extractTextFromPDF(file);
         addLog(`  Texto extraído (${text.length} chars)`, 'ok');
-        const { name, regime } = parseDocenteInfo(text);
+        const { name, regime } = parseDocenteInfo(text, file.name);
         addLog(`  Docente: ${name} (${regime})`, 'ok');
         const { items, warnings } = parseItems(text);
         addLog(`  ${items.length} itens extraídos`, 'ok');
@@ -1147,6 +1467,7 @@ function App() {
         newEvals.push({
           id: Date.now() + '_' + Math.random().toString(36).substr(2,6),
           name, regime, fileName: file.name, scores,
+          area: area || AREA_ALL,
           itemCount: items.length,
           timestamp: new Date().toISOString(),
         });
@@ -1160,7 +1481,12 @@ function App() {
       setEvaluations(prev => {
         const updated = [...prev];
         for (const ne of newEvals) {
-          const idx = updated.findIndex(e => e.name === ne.name);
+          // Use name + fileName as dedup key to avoid false matches on "Docente Desconhecido"
+          const idx = updated.findIndex(e =>
+            e.name === ne.name && e.name !== 'Docente Desconhecido'
+              ? true
+              : e.fileName === ne.fileName
+          );
           if (idx >= 0) { updated[idx] = ne; addLog(`  Substituiu avaliação anterior de ${ne.name}`, 'warn'); }
           else updated.push(ne);
         }
@@ -1186,14 +1512,348 @@ function App() {
     if (expanded === id) setExpanded(null);
   }
 
-  function handleDrop(evt) {
+  function handleDrop(evt, area) {
     evt.preventDefault(); evt.currentTarget.classList.remove('dragover');
-    handleFiles(Array.from(evt.dataTransfer.files));
+    handleFiles(Array.from(evt.dataTransfer.files), area);
   }
   function handleDragOver(evt) { evt.preventDefault(); evt.currentTarget.classList.add('dragover'); }
   function handleDragLeave(evt) { evt.currentTarget.classList.remove('dragover'); }
 
-  function SettingsModal() {
+
+  // ══════════════════════════════════════════════════════════════
+  // GERADOR DE RELATÓRIO PDF
+  // ══════════════════════════════════════════════════════════════
+  async function generateReport() {
+    setReportLoading(true);
+    try {
+      // ── 1. Determine scope ─────────────────────────────────
+      const scopeEvs = reportArea === AREA_ALL
+        ? evaluations
+        : evaluations.filter(ev => ev.area === reportArea);
+      const scopeLabel = reportArea === AREA_ALL
+        ? 'Toda a Unidade'
+        : (AREAS.find(a => a.id === reportArea) || { label: reportArea }).label;
+
+      if (scopeEvs.length === 0) {
+        alert('Nenhum RADOC disponível para o escopo selecionado.'); 
+        setReportLoading(false); return;
+      }
+
+      // ── 2. Compute metrics ─────────────────────────────────
+      function getProd(ev) {
+        return Math.round((ev.scores.PROJ_ENS + ev.scores.PRI + ev.scores.PSQ +
+          ev.scores.EXT + ev.scores.ADM + ev.scores.RPT + ev.scores.OTR)*100)/100;
+      }
+      function getHAS(ev) { return Math.round((ev.scores.ENS_TOTAL/10)*100)/100; }
+      function getApproval(ev) { return calculateApproval(ev.scores, ev.regime, thresholdDE, threshold20); }
+      function isApproved(ev) { return getApproval(ev).status.startsWith('APROVADO'); }
+
+      const total    = scopeEvs.length;
+      const approved = scopeEvs.filter(isApproved).length;
+      const pctA     = Math.round(approved/total*100);
+      const prods    = scopeEvs.map(getProd);
+      const hasArr   = scopeEvs.map(getHAS);
+      const avgProd  = Math.round(prods.reduce((s,v)=>s+v,0)/prods.length);
+      const avgHAS   = Math.round(hasArr.reduce((s,v)=>s+v,0)/hasArr.length*10)/10;
+      const medProd  = (() => { const s=[...prods].sort((a,b)=>a-b); return s.length%2===0?(s[s.length/2-1]+s[s.length/2])/2:s[Math.floor(s.length/2)]; })();
+      const capHit   = scopeEvs.filter(ev=>ev.scores.TOTAL<ev.scores.TOTAL_RAW).length;
+      const T_de     = thresholdDE;
+      const T_20     = threshold20;
+
+      // Area breakdown
+      const areaStats = AREAS.map(ar => {
+        const evs = scopeEvs.filter(ev => ev.area === ar.id);
+        if (!evs.length) return null;
+        const ap  = evs.filter(isApproved).length;
+        const prd = Math.round(evs.map(getProd).reduce((s,v)=>s+v,0)/evs.length);
+        const has = Math.round(evs.map(getHAS).reduce((s,v)=>s+v,0)/evs.length*10)/10;
+        return { label: ar.label, count: evs.length, approved: ap, pctA: Math.round(ap/evs.length*100), avgProd: prd, avgHAS: has };
+      }).filter(Boolean);
+
+      // Per-professor rows
+      const profRows = [...scopeEvs].sort((a,b)=>a.name.localeCompare(b.name)).map(ev => {
+        const ap  = getApproval(ev);
+        const pct = ev.scores.TOTAL_RAW>0 ? Math.round(ev.scores.TOTAL/ev.scores.TOTAL_RAW*100)+'%' : '—';
+        const area = ev.area === AREA_ALL ? '—' : (AREAS.find(a=>a.id===ev.area)||{label:ev.area}).label;
+        const status = ap.status.replace('REPROVADO','Meta não Atingida').replace('Reprovado','Meta não Atingida');
+        const isDE = ev.regime !== '20H';
+        const T = isDE ? T_de : T_20;
+        const Tm = 1.05 * T;
+        const hasNec = !T ? '—' : ap.has>=16 ? '8h (prod. suf.)' : ap.has>=8 
+          ? (Math.round((24-12*ap.prod/Tm)*10)/10)+'h' : '> 16h';
+        const prodNec = !T ? '—' : ap.has<8 ? '--------' : ap.has>=16 ? '0 (CH suf.)' 
+          : Math.ceil(Tm*(24-ap.has)/12)+'pts';
+        return { name: ev.name, area, regime: ev.regime, 
+          ens: ev.scores.ENS_TOTAL, pri: ev.scores.PRI, psq: ev.scores.PSQ,
+          ext: ev.scores.EXT, adm: ev.scores.ADM, otr: ev.scores.OTR,
+          totalRaw: ev.scores.TOTAL_RAW, total: ev.scores.TOTAL,
+          prod: ap.prod, has: ap.has, pct, status, hasNec, prodNec,
+          capHit: ev.scores.TOTAL < ev.scores.TOTAL_RAW };
+      });
+
+      // ── 3. Capture chart images ────────────────────────────
+      function captureCanvas(id) {
+        const el = document.getElementById(id);
+        try { return el ? el.toDataURL('image/png') : null; } catch(e) { return null; }
+      }
+
+      // ── 4. Call Claude API for narrative analysis ──────────
+      const dataPayload = {
+        scopeLabel, total, approved, pctA, avgProd, medProd, avgHAS,
+        thresholdDE: T_de, threshold20: T_20,
+        capHit, capPct: scopeEvs.length ? Math.round(capHit/total*100) : 0,
+        areaStats,
+        catAvgs: ['ENS_TOTAL','PRI','PSQ','EXT','ADM','RPT','OTR'].map(k => ({
+          key: k,
+          label: {'ENS_TOTAL':'Ensino','PRI':'Prod. Intelectual','PSQ':'Pesquisa',
+                  'EXT':'Extensão','ADM':'Administrativo','RPT':'Representação','OTR':'Outras'}[k],
+          avg: Math.round(scopeEvs.map(ev=>ev.scores[k]).reduce((s,v)=>s+v,0)/total)
+        })),
+        notApproved: profRows.filter(p=>!p.status.startsWith('APROVADO'))
+          .map(p=>({ name: p.name, area: p.area, prod: p.prod, has: p.has, prodNec: p.prodNec, hasNec: p.hasNec })),
+      };
+
+      const prompt = `Você é um analista acadêmico da Universidade Federal de Goiás, especialista em avaliação de desempenho docente pela Resolução CONSUNI 18/2017.
+
+Gere uma análise detalhada e objetiva sobre os RADOCs da ${dataPayload.scopeLabel}, em português formal, com os seguintes dados:
+
+**Dados gerais:**
+- Professores analisados: ${total}
+- Meta atingida: ${approved} (${pctA}%)
+- Meta não atingida: ${total-approved} (${100-pctA}%)
+- Produção média: ${avgProd} pts | Mediana: ${medProd} pts
+- HAS médio: ${avgHAS} h/sem
+- Limiar DE/40H (Xm): ${T_de || 'não definido'} pts | Limiar 20H: ${T_20 || 'não definido'} pts
+- Professores com teto aplicado: ${capHit} (${dataPayload.capPct}%)
+
+**Médias por categoria:**
+${dataPayload.catAvgs.map(c=>`- ${c.label}: ${c.avg} pts`).join('\n')}
+
+**Situação por área:**
+${areaStats.map(a=>`- ${a.label}: ${a.count} prof., ${a.pctA}% meta atingida, prod. média ${a.avgProd} pts, HAS médio ${a.avgHAS}h`).join('\n')}
+
+**Professores sem meta atingida:**
+${dataPayload.notApproved.map(p=>`- ${p.name} (${p.area}): prod. ${p.prod} pts, HAS ${p.has}h, produção necessária ${p.prodNec}, HAS necessário ${p.hasNec}`).join('\n') || 'Nenhum'}
+
+Estruture a análise nos seguintes tópicos, em markdown:
+1. **Síntese Executiva** (2-3 parágrafos com o panorama geral)
+2. **Análise do Desempenho de Ensino** (carga horária, distribuição)
+3. **Análise da Produção Intelectual e Técnica** (PRI, PSQ, EXT — o que predomina, o que é deficiente)
+4. **Situação por Área** (compare as áreas, destaque diferenças relevantes)
+5. **Análise dos Tetos Aplicados** (impacto dos limites da Resolução nos RADOCs)
+6. **Professores sem Meta Atingida** (análise individualizada dos casos, o que falta para cada um)
+7. **Recomendações para o Gestor** (ações concretas de distribuição de tarefas e incentivo acadêmico)
+
+Seja específico, cite os números, compare com o limiar Xm quando disponível. A análise deve ajudar o gestor a tomar decisões sobre distribuição de carga docente, incentivo à pesquisa e extensão, e apoio aos professores fora da meta.`;
+
+      let narrative = '';
+      try {
+        const resp = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 2000,
+            messages: [{ role: 'user', content: prompt }]
+          })
+        });
+        const data = await resp.json();
+        if (data.content && data.content[0]) narrative = data.content[0].text;
+      } catch(e) {
+        narrative = '> *Análise automática indisponível. Verifique a conexão com a API.*';
+      }
+
+      // ── 5. Build HTML report ───────────────────────────────
+      function md2html(md) {
+        return md
+          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+          .replace(/^#{1,3}\s+(.+)$/gm, '<h3>$1</h3>')
+          .replace(/^(\d+\.\s+<strong>.+<\/strong>)/gm, '<h3>$1</h3>')
+          .replace(/^-\s+(.+)$/gm, '<li>$1</li>')
+          .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
+          .replace(/\n\n/g, '</p><p>')
+          .replace(/^(?!<[hul])(.+)$/gm, '<p>$1</p>')
+          .replace(/<p><\/p>/g, '')
+          .replace(/>\s*<p>/g, '><p>');
+      }
+
+      const date = new Date().toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
+
+      const profTableRows = profRows.map(p => `
+        <tr class="${p.status.startsWith('APROVADO')?'ok':'fail'}">
+          <td>${p.name}</td>
+          <td>${p.area}</td>
+          <td>${p.regime}</td>
+          <td>${p.ens}</td>
+          <td>${p.pri}</td>
+          <td>${p.psq}</td>
+          <td>${p.ext}</td>
+          <td>${p.adm}</td>
+          <td>${p.otr}</td>
+          <td class="num">${p.totalRaw}</td>
+          <td class="num bold">${p.total}</td>
+          <td class="num">${p.pct}</td>
+          <td class="num">${p.prod}</td>
+          <td class="num">${p.has}h</td>
+          <td class="${p.status.startsWith('APROVADO')?'ok-cell':'fail-cell'}">${p.status}</td>
+          <td>${p.hasNec}</td>
+          <td>${p.prodNec}</td>
+        </tr>`).join('');
+
+      const areaTableRows = areaStats.map(a => `
+        <tr>
+          <td>${a.label}</td>
+          <td class="num">${a.count}</td>
+          <td class="num">${a.approved}</td>
+          <td class="num ${a.pctA>=75?'ok':a.pctA>=50?'warn':'fail'}">${a.pctA}%</td>
+          <td class="num">${a.avgProd}</td>
+          <td class="num">${a.avgHAS}h</td>
+        </tr>`).join('');
+
+      const reportHtml = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Relatório RADOC — ${scopeLabel} — ${date}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'IBM Plex Sans', sans-serif; font-size: 11pt; color: #1a1a18; background: #fff; line-height: 1.55; }
+  .page { max-width: 1100px; margin: 0 auto; padding: 32px 40px; }
+  /* Cover */
+  .cover { border-bottom: 3px solid #1a4b8c; padding-bottom: 24px; margin-bottom: 28px; }
+  .cover h1 { font-size: 22pt; font-weight: 700; color: #1a4b8c; margin-bottom: 4px; }
+  .cover h2 { font-size: 15pt; font-weight: 400; color: #6b6860; margin-bottom: 12px; }
+  .cover .meta { font-size: 10pt; color: #9a968d; display: flex; gap: 24px; flex-wrap: wrap; }
+  /* Section */
+  .section { margin: 28px 0; page-break-inside: avoid; }
+  .section-title { font-size: 13pt; font-weight: 700; color: #1a4b8c; border-bottom: 1px solid #e0ddd5; padding-bottom: 6px; margin-bottom: 14px; }
+  /* KPI grid */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .kpi { background: #f5f5f0; border-radius: 6px; padding: 12px; border-top: 3px solid; }
+  .kpi .k-label { font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.06em; color: #6b6860; font-weight: 700; }
+  .kpi .k-value { font-size: 20pt; font-weight: 700; font-family: 'IBM Plex Mono', monospace; margin-top: 2px; }
+  .kpi .k-sub { font-size: 9pt; color: #6b6860; margin-top: 2px; }
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 9pt; margin-top: 8px; }
+  th { background: #1a4b8c; color: white; padding: 7px 6px; text-align: center; font-size: 8.5pt; font-weight: 600; white-space: nowrap; }
+  td { padding: 6px; border-bottom: 1px solid #e0ddd5; vertical-align: middle; }
+  tr:nth-child(even) { background: #fafaf7; }
+  tr:hover { background: #f0f4fa; }
+  .num { text-align: right; font-family: 'IBM Plex Mono', monospace; }
+  .bold { font-weight: 700; }
+  .ok { background: #e8f5ea !important; }
+  .fail { background: #fce8e8 !important; }
+  .ok-cell { color: #2d7a3a; font-weight: 600; font-size: 8pt; }
+  .fail-cell { color: #b33a3a; font-weight: 600; font-size: 8pt; }
+  .warn { color: #b36b1a; font-weight: 600; }
+  /* Narrative */
+  .narrative { background: #f8f9fc; border-left: 4px solid #1a4b8c; padding: 16px 20px; border-radius: 0 6px 6px 0; }
+  .narrative h3 { font-size: 11.5pt; color: #1a4b8c; margin: 18px 0 6px 0; font-weight: 700; }
+  .narrative p { margin: 6px 0; color: #1a1a18; }
+  .narrative ul { margin: 6px 0 6px 20px; }
+  .narrative li { margin: 3px 0; }
+  .narrative strong { color: #1a4b8c; }
+  /* Footer */
+  .footer { margin-top: 36px; border-top: 1px solid #e0ddd5; padding-top: 12px; font-size: 9pt; color: #9a968d; display: flex; justify-content: space-between; }
+  /* Print */
+  @media print {
+    body { font-size: 10pt; }
+    .section { page-break-inside: avoid; }
+    .cover { page-break-after: always; }
+    table { font-size: 8pt; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- COVER -->
+  <div class="cover">
+    <h1>📊 Relatório de Avaliação RADOC</h1>
+    <h2>Escola de Engenharia Civil e Ambiental — UFG</h2>
+    <h2 style="color:#1a4b8c;font-weight:600">${scopeLabel}</h2>
+    <div class="meta">
+      <span>📅 Gerado em: ${date}</span>
+      <span>👥 Professores: ${total}</span>
+      <span>📏 Resolução CONSUNI 18/2017</span>
+      ${T_de > 0 ? `<span>⚖️ Xm DE/40H: ${T_de} pts</span>` : ''}
+      ${T_20 > 0 ? `<span>⚖️ Xm 20H: ${T_20} pts</span>` : ''}
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="section">
+    <div class="section-title">Indicadores-Chave</div>
+    <div class="kpi-grid">
+      <div class="kpi" style="border-color:#1a4b8c"><div class="k-label">Professores</div><div class="k-value" style="color:#1a4b8c">${total}</div><div class="k-sub">analisados</div></div>
+      <div class="kpi" style="border-color:#2d7a3a"><div class="k-label">Meta Atingida</div><div class="k-value" style="color:#2d7a3a">${approved}</div><div class="k-sub">${pctA}% do total</div></div>
+      <div class="kpi" style="border-color:#b33a3a"><div class="k-label">Meta não Atingida</div><div class="k-value" style="color:#b33a3a">${total-approved}</div><div class="k-sub">${100-pctA}% do total</div></div>
+      <div class="kpi" style="border-color:#7a3b8c"><div class="k-label">Prod. Média</div><div class="k-value" style="color:#7a3b8c">${avgProd}</div><div class="k-sub">pts sem aulas</div></div>
+      <div class="kpi" style="border-color:#5a3b8c"><div class="k-label">Prod. Mediana</div><div class="k-value" style="color:#5a3b8c">${medProd}</div><div class="k-sub">pts sem aulas</div></div>
+      <div class="kpi" style="border-color:#b36b1a"><div class="k-label">HAS Médio</div><div class="k-value" style="color:#b36b1a">${avgHAS}h</div><div class="k-sub">horas-aula/semana</div></div>
+      <div class="kpi" style="border-color:#8c3b3b"><div class="k-label">Com Teto Aplicado</div><div class="k-value" style="color:#8c3b3b">${capHit}</div><div class="k-sub">RADOCs afetados</div></div>
+    </div>
+  </div>
+
+  <!-- NARRATIVE ANALYSIS -->
+  <div class="section">
+    <div class="section-title">Análise Detalhada</div>
+    <div class="narrative">${md2html(narrative)}</div>
+  </div>
+
+  <!-- AREA TABLE -->
+  <div class="section">
+    <div class="section-title">Desempenho por Área</div>
+    <table>
+      <thead><tr>
+        <th style="text-align:left">Área</th>
+        <th>Professores</th><th>Meta Atingida</th><th>% Meta</th>
+        <th>Prod. Média</th><th>HAS Médio</th>
+      </tr></thead>
+      <tbody>${areaTableRows}</tbody>
+    </table>
+  </div>
+
+  <!-- DETAILED TABLE -->
+  <div class="section">
+    <div class="section-title">Detalhamento Individual</div>
+    <table>
+      <thead><tr>
+        <th style="text-align:left;min-width:130px">Nome</th>
+        <th>Área</th><th>Reg.</th>
+        <th>Ensino</th><th>PRI</th><th>PSQ</th><th>EXT</th><th>ADM</th><th>Outras</th>
+        <th>Tot.RADOC</th><th>Tot.Teto</th><th>%</th>
+        <th>Prod</th><th>HAS</th>
+        <th style="min-width:120px">Resultado</th>
+        <th>HAS Nec.</th><th>Prod Nec.</th>
+      </tr></thead>
+      <tbody>${profTableRows}</tbody>
+    </table>
+  </div>
+
+  <div class="footer">
+    <span>SICAD Avaliador · Escola de Engenharia Civil e Ambiental · UFG</span>
+    <span>Resolução CONSUNI 18/2017</span>
+  </div>
+</div>
+<script>window.onload=()=>window.print();<\/script>
+</body>
+</html>`;
+
+      // ── 6. Open in new window ─────────────────────────────
+      const win = window.open('', '_blank', 'width=1200,height=900');
+      win.document.write(reportHtml);
+      win.document.close();
+
+    } catch(err) {
+      alert('Erro ao gerar relatório: ' + err.message);
+    } finally {
+      setReportLoading(false);
+    }
+  }
+
+    function SettingsModal() {
     const [token, setToken] = useState(config.token || '');
     const [gistId, setGistId] = useState(config.gistId || '');
     return e('div', { className:'modal-overlay', onClick:()=>setShowSettings(false) },
@@ -1332,6 +1992,7 @@ function App() {
     const canvasRef = useRef(null);
     const chartRef  = useRef(null);
     const [regime, setRegime] = useState('DE');
+    const [areaFilter, setAreaFilter] = useState(AREA_ALL);
 
     // ── Approval boundary key points ──────────────────────────
     function getBoundary(T, isDE) {
@@ -1370,7 +2031,11 @@ function App() {
       const isDE = regime === 'DE';
       const T    = isDE ? thresholdDE : threshold20;
 
-      const pts = evaluations
+      const filteredByArea = areaFilter === AREA_ALL
+        ? evaluations
+        : evaluations.filter(ev => ev.area === areaFilter);
+
+      const pts = filteredByArea
         .filter(ev => isDE ? ev.regime !== '20H' : ev.regime === '20H')
         .map(ev => {
           const has  = Math.round((ev.scores.ENS_TOTAL / 10) * 100) / 100;
@@ -1392,7 +2057,7 @@ function App() {
       ] : [];
 
       return { pts, lineData, T, bnd, maxX, isDE };
-    }, [evaluations, thresholdDE, threshold20, regime]);
+    }, [evaluations, thresholdDE, threshold20, regime, areaFilter]);
 
     useEffect(() => {
       if (!canvasRef.current) return;
@@ -1635,6 +2300,24 @@ function App() {
         has20H && e('button', { key:'20H', className:`regime-btn ${regime==='20H'?'active':''}`, onClick:()=>setRegime('20H') }, '20 Horas'),
       ),
 
+      // Área filter
+      e('div', { className:'regime-toggle', style:{ marginBottom:12 } },
+        [{ id: AREA_ALL, label: 'Todas as áreas', color: '#1a4b8c' }, ...AREAS].map(ar => {
+          const countInRegime = evaluations
+            .filter(ev => (ar.id === AREA_ALL ? true : ev.area === ar.id))
+            .filter(ev => regime === 'DE' ? ev.regime !== '20H' : ev.regime === '20H')
+            .length;
+          if (ar.id !== AREA_ALL && countInRegime === 0) return null;
+          const isActive = areaFilter === ar.id;
+          return e('button', {
+            key: ar.id,
+            className: 'regime-btn' + (isActive ? ' active' : ''),
+            style: isActive ? { background: ar.color, borderColor: ar.color, color: '#fff' } : {},
+            onClick: () => setAreaFilter(ar.id),
+          }, ar.label, countInRegime > 0 ? e('span', { style:{ marginLeft:4, opacity:0.75 } }, `(${countInRegime})`) : null);
+        })
+      ),
+
       e('div', { className:'chart-grid' },
 
         // ── Chart box ──
@@ -1711,6 +2394,339 @@ function App() {
     );
   }
 
+
+  // ============================================================
+  // DASHBOARD DE GESTÃO — gráficos e KPIs para o gestor
+  // ============================================================
+  function DashboardCharts({ evaluations, thresholdDE, threshold20, reportArea, setReportArea, reportLoading, generateReport }) {
+    const barAreaRef    = useRef(null);
+    const stackedRef    = useRef(null);
+    const hbarRef       = useRef(null);
+    const histRef       = useRef(null);
+    const barAreaChart  = useRef(null);
+    const stackedChart  = useRef(null);
+    const hbarChart     = useRef(null);
+    const histChart     = useRef(null);
+
+    if (evaluations.length === 0) return null;
+
+    // ── helpers ──────────────────────────────────────────────────
+    function getProd(ev) {
+      return Math.round((ev.scores.PROJ_ENS + ev.scores.PRI + ev.scores.PSQ +
+        ev.scores.EXT + ev.scores.ADM + ev.scores.RPT + ev.scores.OTR) * 100) / 100;
+    }
+    function getHAS(ev) {
+      return Math.round((ev.scores.ENS_TOTAL / 10) * 100) / 100;
+    }
+    function getStatus(ev) {
+      return calculateApproval(ev.scores, ev.regime, thresholdDE, threshold20).status;
+    }
+    function isApproved(ev) { return getStatus(ev).startsWith('APROVADO'); }
+
+    const areaLabels  = AREAS.map(a => a.label);
+    const areaIds     = AREAS.map(a => a.id);
+    const areaColors  = AREAS.map(a => a.color);
+
+    // ── KPIs ─────────────────────────────────────────────────────
+    const total      = evaluations.length;
+    const approved   = evaluations.filter(isApproved).length;
+    const notMet     = total - approved;
+    const pctAprov   = total ? Math.round(approved / total * 100) : 0;
+    const allProd    = evaluations.map(getProd);
+    const avgProd    = allProd.length ? Math.round(allProd.reduce((s,v)=>s+v,0)/allProd.length) : 0;
+    const medianProd = (() => {
+      const s = [...allProd].sort((a,b)=>a-b);
+      return s.length ? (s.length%2===0 ? Math.round((s[s.length/2-1]+s[s.length/2])/2) : s[Math.floor(s.length/2)]) : 0;
+    })();
+    const allHAS     = evaluations.map(getHAS);
+    const avgHAS     = allHAS.length ? Math.round(allHAS.reduce((s,v)=>s+v,0)/allHAS.length*10)/10 : 0;
+    const capHitters = evaluations.filter(ev => ev.scores.TOTAL < ev.scores.TOTAL_RAW).length;
+    const avgCapPct  = (() => {
+      const vs = evaluations.filter(ev=>ev.scores.TOTAL_RAW>0)
+        .map(ev=>ev.scores.TOTAL/ev.scores.TOTAL_RAW*100);
+      return vs.length ? Math.round(vs.reduce((s,v)=>s+v,0)/vs.length) : 100;
+    })();
+
+    const kpis = [
+      { label:'Professores',      value: total,        sub:'no filtro atual',      color:'#1a4b8c' },
+      { label:'Meta Atingida',    value: approved,     sub:`${pctAprov}% do total`, color:'#2d7a3a' },
+      { label:'Meta não Atingida',value: notMet,       sub:`${100-pctAprov}% do total`, color:'#b33a3a' },
+      { label:'Prod. Média',      value: avgProd,      sub:'pontos (s/ aulas)',    color:'#7a3b8c' },
+      { label:'Prod. Mediana',    value: medianProd,   sub:'pontos (s/ aulas)',    color:'#5a3b8c' },
+      { label:'HAS Médio',        value: avgHAS+'h',   sub:'horas-aula/semana',    color:'#b36b1a' },
+      { label:'c/ Teto Aplicado', value: capHitters,   sub:`média ${avgCapPct}% do RADOC`, color:'#8c3b3b' },
+    ];
+
+    // ── chart builder util ───────────────────────────────────────
+    function buildChart(ref, chartRef, config) {
+      if (!ref.current) return;
+      if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
+      chartRef.current = new Chart(ref.current, config);
+    }
+
+    // ── Chart 1: Produção média por área (bar + threshold line) ──
+    useEffect(() => {
+      const areaData = areaIds.map(id => {
+        const evs = evaluations.filter(ev => ev.area === id);
+        if (!evs.length) return null;
+        return Math.round(evs.map(getProd).reduce((s,v)=>s+v,0) / evs.length);
+      });
+      const hasArea = areaData.some(v => v !== null);
+      if (!hasArea) { buildChart(barAreaRef, barAreaChart, {
+        type:'bar', data:{ labels:['Sem dados por área'], datasets:[{data:[0]}] },
+        options:{ plugins:{ legend:{display:false} } }
+      }); return; }
+
+      const T = thresholdDE > 0 ? thresholdDE : threshold20;
+      buildChart(barAreaRef, barAreaChart, {
+        type: 'bar',
+        data: {
+          labels: areaLabels,
+          datasets: [
+            {
+              label: 'Produção Média',
+              data: areaData,
+              backgroundColor: areaColors.map(c => c + 'cc'),
+              borderColor: areaColors,
+              borderWidth: 2,
+              borderRadius: 4,
+            },
+            T > 0 ? {
+              label: 'Limiar Xm (1,05×T)',
+              data: areaLabels.map(() => Math.round(1.05 * T)),
+              type: 'line',
+              borderColor: '#1a4b8c',
+              borderWidth: 2,
+              borderDash: [6,3],
+              pointRadius: 0,
+              fill: false,
+            } : null,
+          ].filter(Boolean),
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position:'bottom', labels:{ font:{ size:11 }, padding:10 } },
+            tooltip: { callbacks: { label: ctx => ' ' + (ctx.parsed.y ?? '—') + ' pts' } },
+          },
+          scales: {
+            x: { ticks:{ font:{ size:10 } }, grid:{ display:false } },
+            y: { beginAtZero:true, ticks:{ font:{ size:10 }, callback: v => v+' pts' }, grid:{ color:'#ebe9e4' } },
+          },
+        },
+      });
+    }, [evaluations, thresholdDE, threshold20]);
+
+    // ── Chart 2: Composição das atividades por área (stacked bar) ─
+    useEffect(() => {
+      const catKeys  = ['ENS_TOTAL','PROJ_ENS','PRI','PSQ','EXT','ADM','RPT','OTR'];
+      const catLabels= ['Ensino','Proj.Ensino','Prod.Intel.','Pesquisa','Extensão','Admin.','Repres.','Outras'];
+      const catColors= ['#1a4b8c','#3b7ab8','#7a3b8c','#2d7a3a','#b36b1a','#8c3b3b','#3b6b8c','#5a5a5a'];
+
+      const datasets = catKeys.map((key, i) => ({
+        label: catLabels[i],
+        data: areaIds.map(id => {
+          const evs = evaluations.filter(ev => ev.area === id);
+          if (!evs.length) return 0;
+          return Math.round(evs.map(ev=>ev.scores[key]).reduce((s,v)=>s+v,0) / evs.length);
+        }),
+        backgroundColor: catColors[i] + 'dd',
+        borderWidth: 0,
+        borderRadius: 2,
+      }));
+
+      buildChart(stackedRef, stackedChart, {
+        type: 'bar',
+        data: { labels: areaLabels, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position:'bottom', labels:{ font:{size:10}, padding:8, boxWidth:12 } },
+            tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y} pts` } },
+          },
+          scales: {
+            x: { stacked:true, ticks:{ font:{size:10} }, grid:{display:false} },
+            y: { stacked:true, beginAtZero:true, ticks:{ font:{size:10}, callback: v=>v+'pts' }, grid:{color:'#ebe9e4'} },
+          },
+        },
+      });
+    }, [evaluations]);
+
+    // ── Chart 3: Taxa de aprovação por área (horizontal bar) ──────
+    useEffect(() => {
+      const labels   = [...areaLabels, 'Sem área'];
+      const allAreaIds = [...areaIds, AREA_ALL];
+      const data = allAreaIds.map(id => {
+        const evs = evaluations.filter(ev => id === AREA_ALL ? ev.area === AREA_ALL : ev.area === id);
+        if (!evs.length) return null;
+        return Math.round(evs.filter(isApproved).length / evs.length * 100);
+      });
+      const colors = [...areaColors, '#888'].map((c,i) =>
+        data[i] === null ? 'transparent' : data[i] >= 75 ? '#2d7a3a' : data[i] >= 50 ? '#b36b1a' : '#b33a3a'
+      );
+
+      buildChart(hbarRef, hbarChart, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: '% Meta Atingida',
+            data,
+            backgroundColor: colors.map(c => c + 'cc'),
+            borderColor: colors,
+            borderWidth: 2,
+            borderRadius: 4,
+          }],
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display:false },
+            tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.x ?? '—'}% com meta atingida` } },
+          },
+          scales: {
+            x: {
+              min: 0, max: 100,
+              ticks: { callback: v => v+'%', font:{size:10} },
+              grid: { color:'#ebe9e4' },
+            },
+            y: { ticks:{ font:{size:10} }, grid:{display:false} },
+          },
+        },
+      });
+    }, [evaluations, thresholdDE, threshold20]);
+
+    // ── Chart 4: Histograma de produção ────────────────────────────
+    useEffect(() => {
+      const T = thresholdDE > 0 ? thresholdDE : threshold20;
+      const bins = [0,100,200,300,400,500,600,800,1000,Infinity];
+      const binLabels = ['0-100','100-200','200-300','300-400','400-500','500-600','600-800','800-1k','1k+'];
+      const counts = Array(bins.length-1).fill(0);
+      evaluations.forEach(ev => {
+        const p = getProd(ev);
+        for (let i=0; i<bins.length-1; i++) {
+          if (p >= bins[i] && p < bins[i+1]) { counts[i]++; break; }
+        }
+      });
+      // Find threshold bin
+      const threshBin = T > 0 ? bins.findIndex((b,i) => T >= b && T < bins[i+1]) : -1;
+
+      buildChart(histRef, histChart, {
+        type: 'bar',
+        data: {
+          labels: binLabels,
+          datasets: [{
+            label: 'Professores',
+            data: counts,
+            backgroundColor: counts.map((_,i) =>
+              i < threshBin ? '#b33a3acc' : '#2d7a3acc'
+            ),
+            borderColor: counts.map((_,i) =>
+              i < threshBin ? '#b33a3a' : '#2d7a3a'
+            ),
+            borderWidth: 2,
+            borderRadius: 3,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display:false },
+            tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y} professor(es)` } },
+          },
+          scales: {
+            x: { ticks:{ font:{size:10} }, grid:{display:false} },
+            y: { beginAtZero:true, ticks:{ stepSize:1, font:{size:10} }, grid:{color:'#ebe9e4'} },
+          },
+        },
+      });
+    }, [evaluations, thresholdDE, threshold20]);
+
+    return e('div', { className:'dashboard-section' },
+      e('h2', null, 'Dashboard da Unidade'),
+      e('p', { className:'subtitle' }, 'Indicadores para gestão e distribuição de esforço acadêmico.'),
+
+      // KPI cards
+      e('div', { className:'kpi-grid' },
+        kpis.map((k,i) =>
+          e('div', { key:i, className:'kpi-card', style:{ '--kpi-color': k.color } },
+            e('div', { className:'kpi-label' }, k.label),
+            e('div', { className:'kpi-value' }, k.value),
+            e('div', { className:'kpi-sub' }, k.sub),
+          )
+        )
+      ),
+
+      // Row 1: barra por área + composição empilhada
+      e('div', { className:'dash-charts-grid' },
+        e('div', { className:'dash-chart-box' },
+          e('h3', null, 'Produção média por área'),
+          e('p', null, 'Média de pontos de produção (sem aulas) por área, com linha do limiar Xm'),
+          e('div', { style:{ height:260, position:'relative' } },
+            e('canvas', { ref:barAreaRef })
+          ),
+        ),
+        e('div', { className:'dash-chart-box' },
+          e('h3', null, 'Composição das atividades por área'),
+          e('p', null, 'Média de pontos por categoria de atividade, empilhada por área'),
+          e('div', { style:{ height:260, position:'relative' } },
+            e('canvas', { ref:stackedRef })
+          ),
+        ),
+      ),
+
+      // Row 2: aprovação por área + histograma
+      e('div', { className:'dash-charts-grid' },
+        e('div', { className:'dash-chart-box' },
+          e('h3', null, 'Taxa de meta atingida por área'),
+          e('p', null, 'Verde ≥75% · Laranja ≥50% · Vermelho <50%'),
+          e('div', { style:{ height:220, position:'relative' } },
+            e('canvas', { ref:hbarRef })
+          ),
+        ),
+        e('div', { className:'dash-chart-box' },
+          e('h3', null, 'Distribuição da produção'),
+          e('p', null, 'Número de professores por faixa de produção · Vermelho = abaixo do limiar Xm'),
+          e('div', { style:{ height:220, position:'relative' } },
+            e('canvas', { ref:histRef })
+          ),
+        ),
+      ),
+
+      // ── Gerador de relatório ──────────────────────────────
+      e('div', { className:'report-bar' },
+        e('label', null, '📄 Gerar Relatório PDF:'),
+        e('select', {
+          value: reportArea,
+          onChange: ev => setReportArea(ev.target.value),
+        },
+          e('option', { value: AREA_ALL }, 'Toda a Unidade (todos os RADOCs)'),
+          ...AREAS.map(ar =>
+            e('option', { key: ar.id, value: ar.id }, ar.label)
+          )
+        ),
+        e('span', { className:'hint' },
+          'O relatório inclui análise automática por IA, tabelas e indicadores detalhados. Será aberto em nova aba para impressão ou salvar como PDF.'
+        ),
+        e('button', {
+          className: 'btn-report',
+          onClick: generateReport,
+          disabled: reportLoading || evaluations.length === 0,
+        },
+          reportLoading
+            ? e('span', { className:'report-spinner' })
+            : '📊',
+          reportLoading ? ' Gerando análise...' : ' Gerar Relatório'
+        ),
+      ),
+    );
+  }
+
   function SummaryTable() {
     if (evaluations.length === 0) return null;
     const cols = [
@@ -1723,7 +2739,8 @@ function App() {
       { key:'ADM',       label:'IV(1-3)\nAdmin.' },
       { key:'RPT',       label:'IV(4)\nRepres.' },
       { key:'OTR',       label:'V-Outras\nAtiv.' },
-      { key:'TOTAL',     label:'TOTAL' },
+      { key:'TOTAL_RAW', label:'Total\nRADOC' },
+      { key:'TOTAL',     label:'Total\n(c/ Teto)' },
     ];
 
     // ── Helper: HAS necessário dado prod e T (DE/40H)
@@ -1766,19 +2783,56 @@ function App() {
       return Math.ceil(0.2 * T * (14 - has));
     }
 
+    // Filter evaluations by selected area
+    const filteredEvs = areaFilter === AREA_ALL
+      ? evaluations
+      : evaluations.filter(ev => ev.area === areaFilter);
+
+    const areaInfo = (id) => id === AREA_ALL
+      ? { label: 'Todos', color: '#1a4b8c' }
+      : AREAS.find(a => a.id === id) || { label: id, color: '#555' };
+
     return e('div', { className:'summary-section' },
+      // Área filter pills
+      e('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:14 } },
+        [{ id: AREA_ALL, label: 'Todos', color: '#1a4b8c' }, ...AREAS].map(ar =>
+          e('button', {
+            key: ar.id,
+            className: 'regime-btn' + (areaFilter === ar.id ? ' active' : ''),
+            style: areaFilter === ar.id ? { background: ar.color, borderColor: ar.color, color: '#fff' } : {},
+            onClick: () => setAreaFilter(ar.id),
+          },
+            ar.label,
+            evaluations.filter(ev => ar.id === AREA_ALL ? true : ev.area === ar.id).length > 0
+              ? e('span', { style:{ marginLeft:4, opacity:0.75 } },
+                  `(${evaluations.filter(ev => ar.id === AREA_ALL ? true : ev.area === ar.id).length})`)
+              : null
+          )
+        )
+      ),
       e('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 } },
-        e('h2', null, 'Resultado Final — Com Tetos Aplicados'),
-        e('button', { className:'btn btn-sm', onClick:()=>exportCSV(evaluations,thresholdDE,threshold20) }, '⬇ Exportar CSV'),
+        e('h2', null,
+          'Resultado Final — Com Tetos Aplicados',
+          areaFilter !== AREA_ALL
+            ? e('span', { style:{ fontSize:13, fontWeight:400, marginLeft:8, color: areaInfo(areaFilter).color } },
+                `· ${areaInfo(areaFilter).label}`)
+            : null
+        ),
+        e('button', { className:'btn btn-sm', onClick:()=>exportCSV(filteredEvs,thresholdDE,threshold20) }, '⬇ Exportar CSV'),
       ),
       e('div', { style:{ overflowX:'auto' } },
         e('table', { className:'summary-table' },
           e('thead', null, e('tr', null,
             e('th', { style:{ textAlign:'left', minWidth:160 } }, 'Nome'),
+            e('th', null, 'Área'),
             e('th', null, 'Regime'),
             ...cols.map(c => e('th', { key:c.key, className:c.key==='TOTAL'?'total-col':'', style:{ whiteSpace:'pre-line' } }, c.label)),
             e('th', { style:{ whiteSpace:'pre-line' } }, 'Prod\n(s/ aulas)'),
             e('th', null, 'HAS'),
+            e('th', {
+              style:{ minWidth:55, whiteSpace:'pre-line' },
+              title:'Percentual do Total com Teto em relação ao Total RADOC (sem teto). Valores abaixo de 100% indicam que tetos foram aplicados.'
+            }, '% Teto\n/RADOC'),
             e('th', { style:{ minWidth:140 } }, 'Resultado'),
             e('th', {
               style:{ minWidth:90, whiteSpace:'pre-line', background:'#e8eef6', color:'#1a4b8c', borderLeft:'2px solid #93aad4' },
@@ -1790,7 +2844,7 @@ function App() {
             }, 'Produção\nnecessária'),
           )),
           e('tbody', null,
-            [...evaluations].sort((a,b)=>a.name.localeCompare(b.name)).map(ev => {
+            [...filteredEvs].sort((a,b)=>a.name.localeCompare(b.name)).map(ev => {
               const isDE   = ev.regime !== '20H';
               const T      = isDE ? thresholdDE : threshold20;
               const approval = calculateApproval(ev.scores, ev.regime, thresholdDE, threshold20);
@@ -1846,19 +2900,96 @@ function App() {
 
               return e('tr', { key:ev.id },
                 e('td', null, ev.name),
+                e('td', { style:{ textAlign:'center', fontSize:10, padding:'6px 4px' } },
+                  e('span', {
+                    className: 'area-badge',
+                    style: {
+                      color: (AREAS.find(a=>a.id===ev.area)||{color:'#888'}).color,
+                      borderColor: (AREAS.find(a=>a.id===ev.area)||{color:'#ddd'}).color,
+                      background: (AREAS.find(a=>a.id===ev.area)||{color:'#f5f5f5'}).color + '18',
+                    }
+                  }, ev.area === AREA_ALL ? '—' : (AREAS.find(a=>a.id===ev.area)||{label:ev.area}).label)
+                ),
                 e('td', { style:{ textAlign:'center', fontSize:11 } }, ev.regime),
                 ...cols.map(c => e('td', { key:c.key, className:c.key==='TOTAL'?'total-col':'' }, ev.scores[c.key])),
                 e('td', null, approval.prod),
                 e('td', null, approval.has),
+                e('td', { className: 'pct-cell' + (
+                    !ev.scores.TOTAL_RAW || ev.scores.TOTAL_RAW === 0 ? '' :
+                    ev.scores.TOTAL / ev.scores.TOTAL_RAW >= 0.99 ? ' pct-high' :
+                    ev.scores.TOTAL / ev.scores.TOTAL_RAW >= 0.90 ? ' pct-mid' : ' pct-low'
+                  ),
+                  title: `Total c/ Teto: ${ev.scores.TOTAL} / Total RADOC: ${ev.scores.TOTAL_RAW}`
+                },
+                  ev.scores.TOTAL_RAW > 0
+                    ? Math.round(ev.scores.TOTAL / ev.scores.TOTAL_RAW * 100) + '%'
+                    : '—'
+                ),
                 e('td', { style:{
                   fontWeight:600, fontSize:11,
                   color: isApproved?'var(--green)':isReprovado?'var(--red)':'var(--text-muted)',
                   background: isApproved?'var(--green-bg)':isReprovado?'var(--red-bg)':'transparent',
-                }}, approval.status),
+                }},
+                  approval.status
+                    .replace('REPROVADO', 'Meta não Atingida')
+                    .replace('Reprovado', 'Meta não Atingida')
+                ),
                 e('td', { style: hasStyle  }, hasNeededFmt),
                 e('td', { style: prodStyle }, prodNeededFmt),
               );
             })
+          ),
+          // ── Linha de médias ──────────────────────────────────────────
+          e('tfoot', null,
+            e('tr', { className: 'avg-row' },
+              e('td', { colSpan: 3 }, 'Média'),
+              ...cols.map(c => {
+                const vals = filteredEvs.map(ev => ev.scores[c.key]).filter(v => typeof v === 'number');
+                const avg  = vals.length ? Math.round(vals.reduce((s,v)=>s+v,0) / vals.length * 100) / 100 : '—';
+                return e('td', { key: c.key, className: c.key==='TOTAL'?'total-col':'' }, avg);
+              }),
+              // Prod avg
+              e('td', null, (() => {
+                const vals = filteredEvs.map(ev => calculateApproval(ev.scores, ev.regime, thresholdDE, threshold20).prod);
+                return vals.length ? Math.round(vals.reduce((s,v)=>s+v,0)/vals.length*100)/100 : '—';
+              })()),
+              // HAS avg
+              e('td', null, (() => {
+                const vals = filteredEvs.map(ev => calculateApproval(ev.scores, ev.regime, thresholdDE, threshold20).has);
+                return vals.length ? Math.round(vals.reduce((s,v)=>s+v,0)/vals.length*100)/100 : '—';
+              })()),
+              // % avg
+              e('td', { className:'pct-cell' }, (() => {
+                const vals = filteredEvs
+                  .filter(ev => ev.scores.TOTAL_RAW > 0)
+                  .map(ev => ev.scores.TOTAL / ev.scores.TOTAL_RAW * 100);
+                return vals.length ? Math.round(vals.reduce((s,v)=>s+v,0)/vals.length) + '%' : '—';
+              })()),
+              // Resultado: blank
+              e('td', null, ''),
+              // HAS nec avg
+              e('td', { style:{ borderLeft:'2px solid #93aad4' } }, (() => {
+                const vals = filteredEvs.map(ev => {
+                  const isDE = ev.regime !== '20H';
+                  const T = isDE ? thresholdDE : threshold20;
+                  const prod = calculateApproval(ev.scores, ev.regime, thresholdDE, threshold20).prod;
+                  const v = isDE ? hasNecessario(prod, T) : hasNecessario20(prod, T);
+                  return typeof v === 'number' ? v : null;
+                }).filter(v => v !== null);
+                return vals.length ? Math.round(vals.reduce((s,v)=>s+v,0)/vals.length*10)/10 + 'h' : '—';
+              })()),
+              // Prod nec avg
+              e('td', null, (() => {
+                const vals = filteredEvs.map(ev => {
+                  const isDE = ev.regime !== '20H';
+                  const T = isDE ? thresholdDE : threshold20;
+                  const has = calculateApproval(ev.scores, ev.regime, thresholdDE, threshold20).has;
+                  const v = isDE ? prodNecessaria(has, T) : prodNecessaria20(has, T);
+                  return typeof v === 'number' ? v : null;
+                }).filter(v => v !== null);
+                return vals.length ? Math.round(vals.reduce((s,v)=>s+v,0)/vals.length) : '—';
+              })()),
+            )
           )
         )
       )
@@ -1904,16 +3035,41 @@ function App() {
         e('span', { style:{ fontSize:11, color:'var(--text-muted)' } }, 'Insira os valores médios de referência antes de analisar os PDFs'),
       ),
 
-      // Upload Zone
+      // Upload Zone — Geral
+      e('div', { className:'area-section-label' }, '📂 Upload geral (toda a unidade)'),
       e('div', {
         className:'upload-zone',
-        onDrop:handleDrop, onDragOver:handleDragOver, onDragLeave:handleDragLeave,
+        onDrop:(ev)=>handleDrop(ev, AREA_ALL), onDragOver:handleDragOver, onDragLeave:handleDragLeave,
         onClick:()=>fileInputRef.current?.click(),
       },
         e('input', { ref:fileInputRef, type:'file', accept:'.pdf', multiple:true,
-          onChange:(ev)=>handleFiles(Array.from(ev.target.files)) }),
+          onChange:(ev)=>handleFiles(Array.from(ev.target.files), AREA_ALL) }),
         e('h3', null, processing ? 'Processando...' : 'Arraste PDFs do SICAD aqui'),
-        e('p', null, 'ou clique para selecionar · aceita múltiplos arquivos'),
+        e('p', null, 'ou clique para selecionar · aceita múltiplos arquivos · sem área específica'),
+      ),
+
+      // Upload Zones — por área
+      e('div', { className:'area-section-label' }, '🗂️ Upload por área'),
+      e('div', { className:'areas-grid' },
+        AREAS.map(ar => {
+          const arRef = areaRefs.current[ar.id] || (areaRefs.current[ar.id] = React.createRef());
+          const count = evaluations.filter(ev => ev.area === ar.id).length;
+          return e('div', {
+            key: ar.id,
+            className: 'area-upload',
+            style: { '--area-color': ar.color },
+            onDrop: (ev) => handleDrop(ev, ar.id),
+            onDragOver: handleDragOver,
+            onDragLeave: handleDragLeave,
+            onClick: () => arRef.current?.click(),
+          },
+            count > 0 && e('span', { className:'area-count' }, count),
+            e('input', { ref: arRef, type:'file', accept:'.pdf', multiple:true,
+              onChange:(ev)=>handleFiles(Array.from(ev.target.files), ar.id) }),
+            e('h4', null, ar.label),
+            e('p', null, 'Arrastar ou clicar'),
+          );
+        })
       ),
 
       // Log
@@ -1951,6 +3107,7 @@ function App() {
 
       e(SummaryTable),
       evaluations.length > 0 && e(AnalysisChart, { evaluations, thresholdDE, threshold20 }),
+      evaluations.length > 0 && e(DashboardCharts, { evaluations, thresholdDE, threshold20, reportArea, setReportArea, reportLoading, generateReport }),
     ),
 
     e('footer', null, 'SICAD Avaliador · Resolução CONSUNI 18/2017 · UFG'),
