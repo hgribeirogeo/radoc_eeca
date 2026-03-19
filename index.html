@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SICAD Avaliador — UFG</title>
+<title>Sistema SICAD+ Escola de Engenharia Civil e Ambiental — UFG v1.0</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -1521,12 +1521,11 @@ function App() {
 
 
   // ══════════════════════════════════════════════════════════════
-  // GERADOR DE RELATÓRIO PDF
+  // GERADOR DE RELATÓRIO PDF — versão local (sem API, com gráficos)
   // ══════════════════════════════════════════════════════════════
   async function generateReport() {
     setReportLoading(true);
     try {
-      // ── 1. Determine scope ─────────────────────────────────
       const scopeEvs = reportArea === AREA_ALL
         ? evaluations
         : evaluations.filter(ev => ev.area === reportArea);
@@ -1535,319 +1534,222 @@ function App() {
         : (AREAS.find(a => a.id === reportArea) || { label: reportArea }).label;
 
       if (scopeEvs.length === 0) {
-        alert('Nenhum RADOC disponível para o escopo selecionado.'); 
+        alert('Nenhum RADOC disponível para o escopo selecionado.');
         setReportLoading(false); return;
       }
 
-      // ── 2. Compute metrics ─────────────────────────────────
       function getProd(ev) {
-        return Math.round((ev.scores.PROJ_ENS + ev.scores.PRI + ev.scores.PSQ +
-          ev.scores.EXT + ev.scores.ADM + ev.scores.RPT + ev.scores.OTR)*100)/100;
+        return Math.round((ev.scores.PROJ_ENS+ev.scores.PRI+ev.scores.PSQ+
+          ev.scores.EXT+ev.scores.ADM+ev.scores.RPT+ev.scores.OTR)*100)/100;
       }
-      function getHAS(ev) { return Math.round((ev.scores.ENS_TOTAL/10)*100)/100; }
+      function getHAS(ev)  { return Math.round((ev.scores.ENS_TOTAL/10)*100)/100; }
       function getApproval(ev) { return calculateApproval(ev.scores, ev.regime, thresholdDE, threshold20); }
-      function isApproved(ev) { return getApproval(ev).status.startsWith('APROVADO'); }
+      function isApproved(ev)  { return getApproval(ev).status.startsWith('APROVADO'); }
+      function pct(n,d)   { return d ? Math.round(n/d*100)+'%' : '—'; }
+      function fmtList(arr){ return arr.length ? arr.join(', ') : 'nenhum'; }
 
       const total    = scopeEvs.length;
       const approved = scopeEvs.filter(isApproved).length;
       const pctA     = Math.round(approved/total*100);
-      const prods    = scopeEvs.map(getProd);
+      const prods    = scopeEvs.map(getProd).sort((a,b)=>a-b);
       const hasArr   = scopeEvs.map(getHAS);
       const avgProd  = Math.round(prods.reduce((s,v)=>s+v,0)/prods.length);
+      const medProd  = prods.length%2===0?(prods[prods.length/2-1]+prods[prods.length/2])/2:prods[Math.floor(prods.length/2)];
       const avgHAS   = Math.round(hasArr.reduce((s,v)=>s+v,0)/hasArr.length*10)/10;
-      const medProd  = (() => { const s=[...prods].sort((a,b)=>a-b); return s.length%2===0?(s[s.length/2-1]+s[s.length/2])/2:s[Math.floor(s.length/2)]; })();
       const capHit   = scopeEvs.filter(ev=>ev.scores.TOTAL<ev.scores.TOTAL_RAW).length;
-      const T_de     = thresholdDE;
-      const T_20     = threshold20;
+      const T_de=thresholdDE, T_20=threshold20, Tm_de=1.05*T_de;
 
-      // Area breakdown
-      const areaStats = AREAS.map(ar => {
-        const evs = scopeEvs.filter(ev => ev.area === ar.id);
-        if (!evs.length) return null;
-        const ap  = evs.filter(isApproved).length;
-        const prd = Math.round(evs.map(getProd).reduce((s,v)=>s+v,0)/evs.length);
-        const has = Math.round(evs.map(getHAS).reduce((s,v)=>s+v,0)/evs.length*10)/10;
-        return { label: ar.label, count: evs.length, approved: ap, pctA: Math.round(ap/evs.length*100), avgProd: prd, avgHAS: has };
+      const areaStats = AREAS.map(ar=>{
+        const evs=scopeEvs.filter(ev=>ev.area===ar.id); if(!evs.length)return null;
+        const ap=evs.filter(isApproved).length;
+        const prd=Math.round(evs.map(getProd).reduce((s,v)=>s+v,0)/evs.length);
+        const has=Math.round(evs.map(getHAS).reduce((s,v)=>s+v,0)/evs.length*10)/10;
+        return{label:ar.label,color:ar.color||'#1a4b8c',count:evs.length,approved:ap,
+               pctA:Math.round(ap/evs.length*100),avgProd:prd,avgHAS:has,
+               maxProd:Math.max(...evs.map(getProd)),minProd:Math.min(...evs.map(getProd))};
       }).filter(Boolean);
 
-      // Per-professor rows
-      const profRows = [...scopeEvs].sort((a,b)=>a.name.localeCompare(b.name)).map(ev => {
-        const ap  = getApproval(ev);
-        const pct = ev.scores.TOTAL_RAW>0 ? Math.round(ev.scores.TOTAL/ev.scores.TOTAL_RAW*100)+'%' : '—';
-        const area = ev.area === AREA_ALL ? '—' : (AREAS.find(a=>a.id===ev.area)||{label:ev.area}).label;
-        const status = ap.status.replace('REPROVADO','Meta não Atingida').replace('Reprovado','Meta não Atingida');
-        const isDE = ev.regime !== '20H';
-        const T = isDE ? T_de : T_20;
-        const Tm = 1.05 * T;
-        const hasNec = !T ? '—' : ap.has>=16 ? '8h (prod. suf.)' : ap.has>=8 
-          ? (Math.round((24-12*ap.prod/Tm)*10)/10)+'h' : '> 16h';
-        const prodNec = !T ? '—' : ap.has<8 ? '--------' : ap.has>=16 ? '0 (CH suf.)' 
-          : Math.ceil(Tm*(24-ap.has)/12)+'pts';
-        return { name: ev.name, area, regime: ev.regime, 
-          ens: ev.scores.ENS_TOTAL, pri: ev.scores.PRI, psq: ev.scores.PSQ,
-          ext: ev.scores.EXT, adm: ev.scores.ADM, otr: ev.scores.OTR,
-          totalRaw: ev.scores.TOTAL_RAW, total: ev.scores.TOTAL,
-          prod: ap.prod, has: ap.has, pct, status, hasNec, prodNec,
-          capHit: ev.scores.TOTAL < ev.scores.TOTAL_RAW };
+      const catData=['ENS_TOTAL','PRI','PSQ','EXT','ADM','RPT','OTR'].map((k,i)=>{
+        const labels=['Ensino','Produção Intelectual','Pesquisa','Extensão','Administrativo','Representação','Outras'];
+        return{key:k,label:labels[i],
+               avg:Math.round(scopeEvs.map(ev=>ev.scores[k]).reduce((s,v)=>s+v,0)/total),
+               max:Math.max(...scopeEvs.map(ev=>ev.scores[k])),
+               min:Math.min(...scopeEvs.map(ev=>ev.scores[k]))};
       });
 
-      // ── 3. Capture chart images ────────────────────────────
-      function captureCanvas(id) {
-        const el = document.getElementById(id);
-        try { return el ? el.toDataURL('image/png') : null; } catch(e) { return null; }
+      const profRows=[...scopeEvs].sort((a,b)=>a.name.localeCompare(b.name)).map(ev=>{
+        const ap=getApproval(ev); const isDE=ev.regime!=='20H'; const T=isDE?T_de:T_20; const Tm=1.05*T;
+        const area=ev.area===AREA_ALL?'—':(AREAS.find(a=>a.id===ev.area)||{label:ev.area}).label;
+        const status=ap.status.replace('REPROVADO','Meta não Atingida').replace('Reprovado','Meta não Atingida');
+        const pctV=ev.scores.TOTAL_RAW>0?Math.round(ev.scores.TOTAL/ev.scores.TOTAL_RAW*100)+'%':'—';
+        const hasNec=!T?'—':ap.has>=16?'8h':ap.has>=8?Math.round((24-12*ap.prod/Tm)*10)/10+'h':'>16h';
+        const prodNec=!T?'—':ap.has<8?'----':ap.has>=16?'0':Math.ceil(Tm*(24-ap.has)/12)+'pts';
+        return{name:ev.name,area,regime:ev.regime,ens:ev.scores.ENS_TOTAL,pri:ev.scores.PRI,
+               psq:ev.scores.PSQ,ext:ev.scores.EXT,adm:ev.scores.ADM,otr:ev.scores.OTR,
+               totalRaw:ev.scores.TOTAL_RAW,total:ev.scores.TOTAL,prod:ap.prod,has:ap.has,
+               pct:pctV,status,hasNec,prodNec,ok:ap.status.startsWith('APROVADO'),
+               capHit:ev.scores.TOTAL<ev.scores.TOTAL_RAW};
+      });
+
+      const notMet=profRows.filter(p=>!p.ok);
+      const best3=[...profRows].sort((a,b)=>b.prod-a.prod).slice(0,3);
+      const aboveAvg=scopeEvs.filter(ev=>getProd(ev)>avgProd);
+      const belowAvg=scopeEvs.filter(ev=>getProd(ev)<avgProd);
+      const belowMin=T_de>0?scopeEvs.filter(ev=>getProd(ev)<(0.67*Tm_de)):[];
+      const onlyEnsin=scopeEvs.filter(ev=>getHAS(ev)>=16&&getProd(ev)<(T_de*0.3||999));
+      const highCapHit=scopeEvs.filter(ev=>ev.scores.TOTAL<ev.scores.TOTAL_RAW*0.85);
+      const bestArea=areaStats.length?areaStats.reduce((b,a)=>a.avgProd>b.avgProd?a:b):null;
+      const worstArea=areaStats.length>1?areaStats.reduce((b,a)=>a.avgProd<b.avgProd?a:b):null;
+      const domCat=catData.reduce((b,c)=>c.avg>b.avg?c:b);
+      const weakCat=catData.filter(c=>c.key!=='ENS_TOTAL').reduce((b,c)=>c.avg<b.avg?c:b);
+
+      // Capture charts
+      function captureChart(id){
+        const canvas=document.getElementById(id);
+        if(!canvas)return null;
+        try{return canvas.toDataURL('image/png');}catch(e){return null;}
+      }
+      const imgBarArea=captureChart('chart-bar-area');
+      const imgStacked=captureChart('chart-stacked');
+      const imgHbar=captureChart('chart-hbar');
+      const imgHist=captureChart('chart-hist');
+      function imgTag(src,alt){
+        return src?`<img src="${src}" alt="${alt}" style="width:100%;max-height:280px;object-fit:contain;border-radius:4px;border:1px solid #e0ddd5;margin:6px 0">`:
+          `<p style="color:#9a968d;font-style:italic;text-align:center;padding:16px">[Gráfico não disponível — os gráficos do Dashboard precisam estar visíveis antes de gerar o relatório]</p>`;
       }
 
-      // ── 4. Call Claude API for narrative analysis ──────────
-      const dataPayload = {
-        scopeLabel, total, approved, pctA, avgProd, medProd, avgHAS,
-        thresholdDE: T_de, threshold20: T_20,
-        capHit, capPct: scopeEvs.length ? Math.round(capHit/total*100) : 0,
-        areaStats,
-        catAvgs: ['ENS_TOTAL','PRI','PSQ','EXT','ADM','RPT','OTR'].map(k => ({
-          key: k,
-          label: {'ENS_TOTAL':'Ensino','PRI':'Prod. Intelectual','PSQ':'Pesquisa',
-                  'EXT':'Extensão','ADM':'Administrativo','RPT':'Representação','OTR':'Outras'}[k],
-          avg: Math.round(scopeEvs.map(ev=>ev.scores[k]).reduce((s,v)=>s+v,0)/total)
-        })),
-        notApproved: profRows.filter(p=>!p.status.startsWith('APROVADO'))
-          .map(p=>({ name: p.name, area: p.area, prod: p.prod, has: p.has, prodNec: p.prodNec, hasNec: p.hasNec })),
+      // Narrative
+      const narrative=`<h3>1. Síntese Executiva</h3>
+<p>O relatório analisa <strong>${total} professor(es)</strong> de ${scopeLabel}. ${approved} (${pctA}%) atingiram a meta, enquanto ${total-approved} (${100-pctA}%) não atingiram. ${T_de>0?`Limiar de referência (Xm): <strong>${T_de} pts</strong> para DE/40H.`:'<strong>Atenção:</strong> nenhum limiar Xm foi definido.'} ${pctA>=75?'Índice de aprovação satisfatório.':pctA>=50?'Índice moderado — parte da unidade requer atenção.':'Índice abaixo do desejável — necessária intervenção da gestão.'} Produção média: <strong>${avgProd} pts</strong> (mediana: ${Math.round(medProd)} pts); HAS médio: ${avgHAS} h/sem. ${capHit>0?`${capHit} professor(es) tiveram pontuação reduzida pelos tetos da Resolução.`:''}</p>
+<h3>2. Análise do Desempenho de Ensino</h3>
+<p>HAS médio: <strong>${avgHAS} h/sem</strong>. ${onlyEnsin.length>0?`${onlyEnsin.length} professor(es) com alta carga docente (≥16h/sem) e baixa produção — possível sobrecarga reduzindo tempo para pesquisa.`:'Distribuição entre ensino e produção sem concentrações críticas detectadas.'} Pontuação média em ensino: ${catData.find(c=>c.key==='ENS_TOTAL').avg} pts (variação: ${catData.find(c=>c.key==='ENS_TOTAL').min}–${catData.find(c=>c.key==='ENS_TOTAL').max} pts).</p>
+<h3>3. Análise da Produção Intelectual e Técnica</h3>
+<p>Categoria predominante: <strong>${domCat.label}</strong> (${domCat.avg} pts/prof). Categoria mais deficiente: <strong>${weakCat.label}</strong> (${weakCat.avg} pts). PRI médio: <strong>${catData.find(c=>c.key==='PRI').avg} pts</strong>. Pesquisa: ${catData.find(c=>c.key==='PSQ').avg} pts. Extensão: ${catData.find(c=>c.key==='EXT').avg} pts. ${aboveAvg.length} professor(es) (${pct(aboveAvg.length,total)}) acima da média; ${belowAvg.length} abaixo. ${belowMin.length>0?`<strong>Alerta:</strong> ${belowMin.length} professor(es) com produção abaixo de 67% do limiar mínimo.`:''}</p>
+${areaStats.length>0?`<h3>4. Situação por Área</h3><p>${areaStats.map(a=>`<strong>${a.label}</strong>: ${a.pctA}% meta atingida, produção média ${a.avgProd} pts${T_de>0?(a.avgProd>=Tm_de?' ✓':' ⚠ abaixo do Xm'):''}.`).join(' ')} ${bestArea?`Melhor: <strong>${bestArea.label}</strong> (${bestArea.avgProd} pts).`:''}  ${worstArea&&worstArea.label!==bestArea?.label?`Mais crítica: <strong>${worstArea.label}</strong> (${worstArea.avgProd} pts).`:''}</p>`:''}
+<h3>5. Análise dos Tetos Aplicados</h3>
+<p>${capHit===0?'Nenhum teto aplicado — atividades bem distribuídas entre as categorias.':
+  `${capHit} professor(es) com pontuação reduzida pelos tetos da Resolução. ${highCapHit.length>0?`${highCapHit.length} caso(s) com redução >15% — concentração excessiva em categorias limitadas.`:''} Orientar esses professores a diversificar suas atividades.`}</p>
+${notMet.length>0?`<h3>6. Professores sem Meta Atingida</h3><ul>${notMet.map(p=>`<li><strong>${p.name}</strong> (${p.area}, ${p.regime}): ${p.prod} pts, ${p.has}h/sem.${p.prodNec!=='—'&&p.prodNec!=='0'?` Faltam ${p.prodNec} de produção ou ${p.hasNec} de ensino.`:''}${p.capHit?' Verificar distribuição das atividades (teto aplicado).':''}</li>`).join('')}</ul>`:
+`<h3>6. Destaques</h3><p>Todos atingiram a meta. Maiores produções: ${best3.map(p=>`<strong>${p.name}</strong> (${p.prod} pts)`).join(', ')}.</p>`}
+<h3>7. Recomendações</h3>
+<ul>
+${notMet.length>0?`<li><strong>Acompanhamento individual</strong> dos ${notMet.length} professor(es) sem meta — definir plano de metas para o próximo período.</li>`:''}
+${onlyEnsin.length>0?`<li><strong>Redistribuição de carga docente</strong> para ${onlyEnsin.length} professor(es) com alta carga e baixa produção.</li>`:''}
+${weakCat&&weakCat.avg<20?`<li><strong>Incentivo à ${weakCat.label}</strong> (média ${weakCat.avg} pts) — promover ações de capacitação.</li>`:''}
+${worstArea&&worstArea.pctA<60?`<li><strong>Suporte prioritário à área ${worstArea.label}</strong> (${worstArea.pctA}% de aprovação).</li>`:''}
+${capHit>0?`<li><strong>Orientação sobre tetos</strong> para os ${capHit} professor(es) afetados — diversificar atividades.</li>`:''}
+${belowMin.length>0?`<li><strong>Atenção urgente</strong> para ${belowMin.length} professor(es) com produção muito abaixo do mínimo.</li>`:''}
+<li><strong>Monitoramento semestral</strong> da evolução dos indicadores.</li>
+<li><strong>Planejamento coletivo</strong> com definição de metas por área.</li>
+</ul>`;
+
+      const chartTexts={
+        barArea:`Compara a produção média de cada área com o limiar Xm (linha tracejada = ${T_de>0?Math.round(Tm_de)+' pts':'não definido'}). ${bestArea?`Destaque: <strong>${bestArea.label}</strong> (${bestArea.avgProd} pts).`:''} ${worstArea&&areaStats.length>1?`Atenção: <strong>${worstArea.label}</strong> (${worstArea.avgProd} pts).`:''} Áreas abaixo da linha necessitam intervenção da gestão.`,
+        stacked:`Perfil de atividades de cada área. Azul = Ensino; Roxo = Produção Intelectual. Áreas dominadas por Ensino podem indicar sobrecarga docente. Composição equilibrada tende a melhor desempenho global.`,
+        hbar:`Taxa de meta atingida por área: ${areaStats.filter(a=>a.pctA<50).length>0?`<strong>Crítico (< 50%):</strong> ${fmtList(areaStats.filter(a=>a.pctA<50).map(a=>a.label))}.`:''} ${areaStats.filter(a=>a.pctA>=75).length>0?`<strong>Bom (≥ 75%):</strong> ${fmtList(areaStats.filter(a=>a.pctA>=75).map(a=>a.label))}.`:''} Use para priorizar alocação de recursos.`,
+        hist:`Distribuição de professores por faixa de produção. ${T_de>0?`Vermelho = abaixo do Xm (${T_de} pts): ${scopeEvs.filter(ev=>getProd(ev)<T_de).length} professor(es).`:''} Concentração à esquerda indica necessidade sistêmica de incentivo à produção.`
       };
 
-      const prompt = `Você é um analista acadêmico da Universidade Federal de Goiás, especialista em avaliação de desempenho docente pela Resolução CONSUNI 18/2017.
+      const date=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
+      const areaRows=areaStats.map(a=>`<tr><td><span style="display:inline-block;width:9px;height:9px;background:${a.color};border-radius:2px;margin-right:5px;"></span>${a.label}</td><td class="num">${a.count}</td><td class="num">${a.approved}</td><td class="num ${a.pctA>=75?'ok-cell':a.pctA>=50?'warn-cell':'fail-cell'}">${a.pctA}%</td><td class="num">${a.avgProd}</td><td class="num">${a.maxProd}</td><td class="num">${a.minProd}</td><td class="num">${a.avgHAS}h</td></tr>`).join('');
+      const profTbody=profRows.map(p=>`<tr class="${p.ok?'ok':'fail'}"><td>${p.name}</td><td style="font-size:8pt">${p.area}</td><td>${p.regime}</td><td class="num">${p.ens}</td><td class="num">${p.pri}</td><td class="num">${p.psq}</td><td class="num">${p.ext}</td><td class="num">${p.adm}</td><td class="num">${p.otr}</td><td class="num">${p.totalRaw}</td><td class="num bold">${p.total}</td><td class="num">${p.pct}</td><td class="num">${p.prod}</td><td class="num">${p.has}h</td><td class="${p.ok?'ok-cell':'fail-cell'}" style="font-size:8pt">${p.status}</td><td>${p.hasNec}</td><td>${p.prodNec}</td></tr>`).join('');
 
-Gere uma análise detalhada e objetiva sobre os RADOCs da ${dataPayload.scopeLabel}, em português formal, com os seguintes dados:
-
-**Dados gerais:**
-- Professores analisados: ${total}
-- Meta atingida: ${approved} (${pctA}%)
-- Meta não atingida: ${total-approved} (${100-pctA}%)
-- Produção média: ${avgProd} pts | Mediana: ${medProd} pts
-- HAS médio: ${avgHAS} h/sem
-- Limiar DE/40H (Xm): ${T_de || 'não definido'} pts | Limiar 20H: ${T_20 || 'não definido'} pts
-- Professores com teto aplicado: ${capHit} (${dataPayload.capPct}%)
-
-**Médias por categoria:**
-${dataPayload.catAvgs.map(c=>`- ${c.label}: ${c.avg} pts`).join('\n')}
-
-**Situação por área:**
-${areaStats.map(a=>`- ${a.label}: ${a.count} prof., ${a.pctA}% meta atingida, prod. média ${a.avgProd} pts, HAS médio ${a.avgHAS}h`).join('\n')}
-
-**Professores sem meta atingida:**
-${dataPayload.notApproved.map(p=>`- ${p.name} (${p.area}): prod. ${p.prod} pts, HAS ${p.has}h, produção necessária ${p.prodNec}, HAS necessário ${p.hasNec}`).join('\n') || 'Nenhum'}
-
-Estruture a análise nos seguintes tópicos, em markdown:
-1. **Síntese Executiva** (2-3 parágrafos com o panorama geral)
-2. **Análise do Desempenho de Ensino** (carga horária, distribuição)
-3. **Análise da Produção Intelectual e Técnica** (PRI, PSQ, EXT — o que predomina, o que é deficiente)
-4. **Situação por Área** (compare as áreas, destaque diferenças relevantes)
-5. **Análise dos Tetos Aplicados** (impacto dos limites da Resolução nos RADOCs)
-6. **Professores sem Meta Atingida** (análise individualizada dos casos, o que falta para cada um)
-7. **Recomendações para o Gestor** (ações concretas de distribuição de tarefas e incentivo acadêmico)
-
-Seja específico, cite os números, compare com o limiar Xm quando disponível. A análise deve ajudar o gestor a tomar decisões sobre distribuição de carga docente, incentivo à pesquisa e extensão, e apoio aos professores fora da meta.`;
-
-      let narrative = '';
-      try {
-        const resp = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 2000,
-            messages: [{ role: 'user', content: prompt }]
-          })
-        });
-        const data = await resp.json();
-        if (data.content && data.content[0]) narrative = data.content[0].text;
-      } catch(e) {
-        narrative = '> *Análise automática indisponível. Verifique a conexão com a API.*';
-      }
-
-      // ── 5. Build HTML report ───────────────────────────────
-      function md2html(md) {
-        return md
-          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-          .replace(/^#{1,3}\s+(.+)$/gm, '<h3>$1</h3>')
-          .replace(/^(\d+\.\s+<strong>.+<\/strong>)/gm, '<h3>$1</h3>')
-          .replace(/^-\s+(.+)$/gm, '<li>$1</li>')
-          .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
-          .replace(/\n\n/g, '</p><p>')
-          .replace(/^(?!<[hul])(.+)$/gm, '<p>$1</p>')
-          .replace(/<p><\/p>/g, '')
-          .replace(/>\s*<p>/g, '><p>');
-      }
-
-      const date = new Date().toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
-
-      const profTableRows = profRows.map(p => `
-        <tr class="${p.status.startsWith('APROVADO')?'ok':'fail'}">
-          <td>${p.name}</td>
-          <td>${p.area}</td>
-          <td>${p.regime}</td>
-          <td>${p.ens}</td>
-          <td>${p.pri}</td>
-          <td>${p.psq}</td>
-          <td>${p.ext}</td>
-          <td>${p.adm}</td>
-          <td>${p.otr}</td>
-          <td class="num">${p.totalRaw}</td>
-          <td class="num bold">${p.total}</td>
-          <td class="num">${p.pct}</td>
-          <td class="num">${p.prod}</td>
-          <td class="num">${p.has}h</td>
-          <td class="${p.status.startsWith('APROVADO')?'ok-cell':'fail-cell'}">${p.status}</td>
-          <td>${p.hasNec}</td>
-          <td>${p.prodNec}</td>
-        </tr>`).join('');
-
-      const areaTableRows = areaStats.map(a => `
-        <tr>
-          <td>${a.label}</td>
-          <td class="num">${a.count}</td>
-          <td class="num">${a.approved}</td>
-          <td class="num ${a.pctA>=75?'ok':a.pctA>=50?'warn':'fail'}">${a.pctA}%</td>
-          <td class="num">${a.avgProd}</td>
-          <td class="num">${a.avgHAS}h</td>
-        </tr>`).join('');
-
-      const reportHtml = `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
+      const reportHtml=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
 <title>Relatório RADOC — ${scopeLabel} — ${date}</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'IBM Plex Sans', sans-serif; font-size: 11pt; color: #1a1a18; background: #fff; line-height: 1.55; }
-  .page { max-width: 1100px; margin: 0 auto; padding: 32px 40px; }
-  /* Cover */
-  .cover { border-bottom: 3px solid #1a4b8c; padding-bottom: 24px; margin-bottom: 28px; }
-  .cover h1 { font-size: 22pt; font-weight: 700; color: #1a4b8c; margin-bottom: 4px; }
-  .cover h2 { font-size: 15pt; font-weight: 400; color: #6b6860; margin-bottom: 12px; }
-  .cover .meta { font-size: 10pt; color: #9a968d; display: flex; gap: 24px; flex-wrap: wrap; }
-  /* Section */
-  .section { margin: 28px 0; page-break-inside: avoid; }
-  .section-title { font-size: 13pt; font-weight: 700; color: #1a4b8c; border-bottom: 1px solid #e0ddd5; padding-bottom: 6px; margin-bottom: 14px; }
-  /* KPI grid */
-  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-  .kpi { background: #f5f5f0; border-radius: 6px; padding: 12px; border-top: 3px solid; }
-  .kpi .k-label { font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.06em; color: #6b6860; font-weight: 700; }
-  .kpi .k-value { font-size: 20pt; font-weight: 700; font-family: 'IBM Plex Mono', monospace; margin-top: 2px; }
-  .kpi .k-sub { font-size: 9pt; color: #6b6860; margin-top: 2px; }
-  /* Tables */
-  table { width: 100%; border-collapse: collapse; font-size: 9pt; margin-top: 8px; }
-  th { background: #1a4b8c; color: white; padding: 7px 6px; text-align: center; font-size: 8.5pt; font-weight: 600; white-space: nowrap; }
-  td { padding: 6px; border-bottom: 1px solid #e0ddd5; vertical-align: middle; }
-  tr:nth-child(even) { background: #fafaf7; }
-  tr:hover { background: #f0f4fa; }
-  .num { text-align: right; font-family: 'IBM Plex Mono', monospace; }
-  .bold { font-weight: 700; }
-  .ok { background: #e8f5ea !important; }
-  .fail { background: #fce8e8 !important; }
-  .ok-cell { color: #2d7a3a; font-weight: 600; font-size: 8pt; }
-  .fail-cell { color: #b33a3a; font-weight: 600; font-size: 8pt; }
-  .warn { color: #b36b1a; font-weight: 600; }
-  /* Narrative */
-  .narrative { background: #f8f9fc; border-left: 4px solid #1a4b8c; padding: 16px 20px; border-radius: 0 6px 6px 0; }
-  .narrative h3 { font-size: 11.5pt; color: #1a4b8c; margin: 18px 0 6px 0; font-weight: 700; }
-  .narrative p { margin: 6px 0; color: #1a1a18; }
-  .narrative ul { margin: 6px 0 6px 20px; }
-  .narrative li { margin: 3px 0; }
-  .narrative strong { color: #1a4b8c; }
-  /* Footer */
-  .footer { margin-top: 36px; border-top: 1px solid #e0ddd5; padding-top: 12px; font-size: 9pt; color: #9a968d; display: flex; justify-content: space-between; }
-  /* Print */
-  @media print {
-    body { font-size: 10pt; }
-    .section { page-break-inside: avoid; }
-    .cover { page-break-after: always; }
-    table { font-size: 8pt; }
-  }
-</style>
-</head>
-<body>
-<div class="page">
-
-  <!-- COVER -->
-  <div class="cover">
-    <h1>📊 Relatório de Avaliação RADOC</h1>
-    <h2>Escola de Engenharia Civil e Ambiental — UFG</h2>
-    <h2 style="color:#1a4b8c;font-weight:600">${scopeLabel}</h2>
-    <div class="meta">
-      <span>📅 Gerado em: ${date}</span>
-      <span>👥 Professores: ${total}</span>
-      <span>📏 Resolução CONSUNI 18/2017</span>
-      ${T_de > 0 ? `<span>⚖️ Xm DE/40H: ${T_de} pts</span>` : ''}
-      ${T_20 > 0 ? `<span>⚖️ Xm 20H: ${T_20} pts</span>` : ''}
-    </div>
-  </div>
-
-  <!-- KPIs -->
-  <div class="section">
-    <div class="section-title">Indicadores-Chave</div>
-    <div class="kpi-grid">
-      <div class="kpi" style="border-color:#1a4b8c"><div class="k-label">Professores</div><div class="k-value" style="color:#1a4b8c">${total}</div><div class="k-sub">analisados</div></div>
-      <div class="kpi" style="border-color:#2d7a3a"><div class="k-label">Meta Atingida</div><div class="k-value" style="color:#2d7a3a">${approved}</div><div class="k-sub">${pctA}% do total</div></div>
-      <div class="kpi" style="border-color:#b33a3a"><div class="k-label">Meta não Atingida</div><div class="k-value" style="color:#b33a3a">${total-approved}</div><div class="k-sub">${100-pctA}% do total</div></div>
-      <div class="kpi" style="border-color:#7a3b8c"><div class="k-label">Prod. Média</div><div class="k-value" style="color:#7a3b8c">${avgProd}</div><div class="k-sub">pts sem aulas</div></div>
-      <div class="kpi" style="border-color:#5a3b8c"><div class="k-label">Prod. Mediana</div><div class="k-value" style="color:#5a3b8c">${medProd}</div><div class="k-sub">pts sem aulas</div></div>
-      <div class="kpi" style="border-color:#b36b1a"><div class="k-label">HAS Médio</div><div class="k-value" style="color:#b36b1a">${avgHAS}h</div><div class="k-sub">horas-aula/semana</div></div>
-      <div class="kpi" style="border-color:#8c3b3b"><div class="k-label">Com Teto Aplicado</div><div class="k-value" style="color:#8c3b3b">${capHit}</div><div class="k-sub">RADOCs afetados</div></div>
-    </div>
-  </div>
-
-  <!-- NARRATIVE ANALYSIS -->
-  <div class="section">
-    <div class="section-title">Análise Detalhada</div>
-    <div class="narrative">${md2html(narrative)}</div>
-  </div>
-
-  <!-- AREA TABLE -->
-  <div class="section">
-    <div class="section-title">Desempenho por Área</div>
-    <table>
-      <thead><tr>
-        <th style="text-align:left">Área</th>
-        <th>Professores</th><th>Meta Atingida</th><th>% Meta</th>
-        <th>Prod. Média</th><th>HAS Médio</th>
-      </tr></thead>
-      <tbody>${areaTableRows}</tbody>
-    </table>
-  </div>
-
-  <!-- DETAILED TABLE -->
-  <div class="section">
-    <div class="section-title">Detalhamento Individual</div>
-    <table>
-      <thead><tr>
-        <th style="text-align:left;min-width:130px">Nome</th>
-        <th>Área</th><th>Reg.</th>
-        <th>Ensino</th><th>PRI</th><th>PSQ</th><th>EXT</th><th>ADM</th><th>Outras</th>
-        <th>Tot.RADOC</th><th>Tot.Teto</th><th>%</th>
-        <th>Prod</th><th>HAS</th>
-        <th style="min-width:120px">Resultado</th>
-        <th>HAS Nec.</th><th>Prod Nec.</th>
-      </tr></thead>
-      <tbody>${profTableRows}</tbody>
-    </table>
-  </div>
-
-  <div class="footer">
-    <span>SICAD Avaliador · Escola de Engenharia Civil e Ambiental · UFG</span>
-    <span>Resolução CONSUNI 18/2017</span>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;font-size:10.5pt;color:#1a1a18;background:#fff;line-height:1.6}
+.page{max-width:1100px;margin:0 auto;padding:32px 40px}
+.cover{border-bottom:3px solid #1a4b8c;padding-bottom:20px;margin-bottom:24px}
+.cover h1{font-size:20pt;font-weight:700;color:#1a4b8c;margin-bottom:4px}
+.cover h2{font-size:13pt;font-weight:400;color:#6b6860}
+.cover h3{font-size:14pt;font-weight:700;color:#1a4b8c;margin:8px 0}
+.cover .meta{font-size:9.5pt;color:#9a968d;display:flex;gap:20px;flex-wrap:wrap;margin-top:10px}
+.section{margin:20px 0;page-break-inside:avoid}
+.section-title{font-size:12pt;font-weight:700;color:#1a4b8c;border-bottom:1px solid #e0ddd5;padding-bottom:5px;margin-bottom:12px}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:6px}
+.kpi{background:#f5f5f0;border-radius:6px;padding:10px 12px;border-top:3px solid}
+.kpi .k-l{font-size:7.5pt;text-transform:uppercase;letter-spacing:.06em;color:#6b6860;font-weight:700}
+.kpi .k-v{font-size:18pt;font-weight:700;margin-top:2px}
+.kpi .k-s{font-size:8pt;color:#6b6860}
+table{width:100%;border-collapse:collapse;font-size:8pt;margin-top:6px}
+th{background:#1a4b8c;color:#fff;padding:6px 4px;text-align:center;font-size:7.5pt;font-weight:700;white-space:nowrap}
+td{padding:5px 4px;border-bottom:1px solid #e0ddd5;vertical-align:middle}
+tr:nth-child(even){background:#fafaf7}
+.num{text-align:right}
+.bold{font-weight:700}
+.ok{background:#e8f5ea!important}
+.fail{background:#fce8e8!important}
+.ok-cell{color:#2d7a3a;font-weight:700}
+.fail-cell{color:#b33a3a;font-weight:700}
+.warn-cell{color:#b36b1a;font-weight:700}
+.narrative{background:#f8f9fc;border-left:4px solid #1a4b8c;padding:14px 18px;border-radius:0 6px 6px 0}
+.narrative h3{font-size:10.5pt;color:#1a4b8c;margin:14px 0 4px;font-weight:700}
+.narrative p{margin:4px 0}
+.narrative ul{margin:4px 0 4px 18px}
+.narrative li{margin:3px 0}
+.narrative strong{color:#1a3a6c}
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:10px 0}
+.chart-box{border:1px solid #e0ddd5;border-radius:6px;padding:12px;page-break-inside:avoid}
+.chart-box h4{font-size:9.5pt;font-weight:700;color:#1a4b8c;margin-bottom:4px}
+.chart-analysis{font-size:8.5pt;color:#4a4848;margin-top:8px;line-height:1.5}
+.footer{margin-top:24px;border-top:1px solid #e0ddd5;padding-top:10px;font-size:8pt;color:#9a968d;display:flex;justify-content:space-between}
+@media print{.section{page-break-inside:avoid}.chart-grid{page-break-inside:avoid}}
+</style></head><body><div class="page">
+<div class="cover">
+  <h1>📊 Relatório de Avaliação RADOC</h1>
+  <h2>Escola de Engenharia Civil e Ambiental — UFG</h2>
+  <h3>${scopeLabel}</h3>
+  <div class="meta">
+    <span>📅 ${date}</span><span>👥 Professores: ${total}</span>
+    <span>📋 Resolução CONSUNI 18/2017</span>
+    ${T_de>0?`<span>⚖️ Xm DE/40H: ${T_de} pts</span>`:''}
+    ${T_20>0?`<span>⚖️ Xm 20H: ${T_20} pts</span>`:''}
   </div>
 </div>
-<script>window.onload=()=>window.print();<\/script>
-</body>
-</html>`;
+<div class="section">
+  <div class="section-title">Indicadores-Chave</div>
+  <div class="kpi-grid">
+    <div class="kpi" style="border-color:#1a4b8c"><div class="k-l">Professores</div><div class="k-v" style="color:#1a4b8c">${total}</div><div class="k-s">analisados</div></div>
+    <div class="kpi" style="border-color:#2d7a3a"><div class="k-l">Meta Atingida</div><div class="k-v" style="color:#2d7a3a">${approved}</div><div class="k-s">${pctA}% do total</div></div>
+    <div class="kpi" style="border-color:#b33a3a"><div class="k-l">Meta não Atingida</div><div class="k-v" style="color:#b33a3a">${total-approved}</div><div class="k-s">${100-pctA}% do total</div></div>
+    <div class="kpi" style="border-color:#7a3b8c"><div class="k-l">Prod. Média</div><div class="k-v" style="color:#7a3b8c">${avgProd}</div><div class="k-s">pts (s/ aulas)</div></div>
+    <div class="kpi" style="border-color:#5a3b8c"><div class="k-l">Prod. Mediana</div><div class="k-v" style="color:#5a3b8c">${Math.round(medProd)}</div><div class="k-s">pts</div></div>
+    <div class="kpi" style="border-color:#b36b1a"><div class="k-l">HAS Médio</div><div class="k-v" style="color:#b36b1a">${avgHAS}h</div><div class="k-s">h-aula/semana</div></div>
+    <div class="kpi" style="border-color:#8c3b3b"><div class="k-l">c/ Teto Aplicado</div><div class="k-v" style="color:#8c3b3b">${capHit}</div><div class="k-s">RADOCs afetados</div></div>
+  </div>
+</div>
+<div class="section">
+  <div class="section-title">Análise Detalhada</div>
+  <div class="narrative">${narrative}</div>
+</div>
+<div class="section">
+  <div class="section-title">Gráficos do Dashboard</div>
+  <div class="chart-grid">
+    <div class="chart-box"><h4>Produção Média por Área</h4>${imgTag(imgBarArea,'Produção por área')}<div class="chart-analysis">${chartTexts.barArea}</div></div>
+    <div class="chart-box"><h4>Composição das Atividades por Área</h4>${imgTag(imgStacked,'Composição empilhada')}<div class="chart-analysis">${chartTexts.stacked}</div></div>
+  </div>
+  <div class="chart-grid">
+    <div class="chart-box"><h4>Taxa de Meta Atingida por Área</h4>${imgTag(imgHbar,'Taxa de aprovação')}<div class="chart-analysis">${chartTexts.hbar}</div></div>
+    <div class="chart-box"><h4>Distribuição da Produção</h4>${imgTag(imgHist,'Histograma')}<div class="chart-analysis">${chartTexts.hist}</div></div>
+  </div>
+</div>
+${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho por Área</div><table><thead><tr><th style="text-align:left">Área</th><th>Prof</th><th>Meta</th><th>%Meta</th><th>ProdMéd</th><th>ProdMáx</th><th>ProdMín</th><th>HASMéd</th></tr></thead><tbody>${areaRows}</tbody></table></div>`:''}
+<div class="section"><div class="section-title">Detalhamento Individual</div>
+<table><thead><tr><th style="text-align:left;min-width:110px">Nome</th><th>Área</th><th>Reg</th><th>Ens</th><th>PRI</th><th>PSQ</th><th>EXT</th><th>ADM</th><th>Outras</th><th>Tot.RADOC</th><th>Tot.Teto</th><th>%</th><th>Prod</th><th>HAS</th><th style="min-width:100px">Resultado</th><th>HASNec</th><th>ProdNec</th></tr></thead>
+<tbody>${profTbody}</tbody></table></div>
+<div class="footer"><span>SICAD Avaliador · EECA · UFG</span><span>Resolução CONSUNI 18/2017 · ${date}</span></div>
+</div>
+<script>document.fonts&&document.fonts.ready?document.fonts.ready.then(()=>setTimeout(()=>window.print(),600)):setTimeout(()=>window.print(),1200);<\/script>
+</body></html>`;
 
-      // ── 6. Open in new window ─────────────────────────────
-      const win = window.open('', '_blank', 'width=1200,height=900');
+      const win=window.open('','_blank','width=1200,height=900');
+      if(!win){alert('Pop-up bloqueado! Permita pop-ups para este site e tente novamente.');return;}
       win.document.write(reportHtml);
       win.document.close();
 
     } catch(err) {
-      alert('Erro ao gerar relatório: ' + err.message);
+      alert('Erro ao gerar relatório: '+err.message);
     } finally {
       setReportLoading(false);
     }
@@ -2668,14 +2570,14 @@ Seja específico, cite os números, compare com o limiar Xm quando disponível. 
           e('h3', null, 'Produção média por área'),
           e('p', null, 'Média de pontos de produção (sem aulas) por área, com linha do limiar Xm'),
           e('div', { style:{ height:260, position:'relative' } },
-            e('canvas', { ref:barAreaRef })
+            e('canvas', { ref:barAreaRef, id:'chart-bar-area' })
           ),
         ),
         e('div', { className:'dash-chart-box' },
           e('h3', null, 'Composição das atividades por área'),
           e('p', null, 'Média de pontos por categoria de atividade, empilhada por área'),
           e('div', { style:{ height:260, position:'relative' } },
-            e('canvas', { ref:stackedRef })
+            e('canvas', { ref:stackedRef, id:'chart-stacked' })
           ),
         ),
       ),
@@ -2686,14 +2588,14 @@ Seja específico, cite os números, compare com o limiar Xm quando disponível. 
           e('h3', null, 'Taxa de meta atingida por área'),
           e('p', null, 'Verde ≥75% · Laranja ≥50% · Vermelho <50%'),
           e('div', { style:{ height:220, position:'relative' } },
-            e('canvas', { ref:hbarRef })
+            e('canvas', { ref:hbarRef,    id:'chart-hbar' })
           ),
         ),
         e('div', { className:'dash-chart-box' },
           e('h3', null, 'Distribuição da produção'),
           e('p', null, 'Número de professores por faixa de produção · Vermelho = abaixo do limiar Xm'),
           e('div', { style:{ height:220, position:'relative' } },
-            e('canvas', { ref:histRef })
+            e('canvas', { ref:histRef,    id:'chart-hist' })
           ),
         ),
       ),
