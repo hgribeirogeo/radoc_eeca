@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SICAD Avaliador — UFG</title>
+<title>Sistema SICAD+ da Escola de Engenharia Civil e Ambiental — UFG v1.0</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -1738,12 +1738,35 @@ ${belowMin.length>0?`<li><strong>Atenção urgente</strong> para ${belowMin.leng
 <li><strong>Planejamento coletivo</strong> com definição de metas por área.</li>
 </ul>`;
 
+      // ── Análise contextual por gráfico ───────────────────
+      // Calcula posição de cada professor da área em relação à unidade
+      const areaProfs = scopeEvs.filter(ev =>
+        reportArea !== AREA_ALL ? ev.area === reportArea : true
+      );
+      const areaAbove = areaProfs.filter(ev => {
+        const ap = getApproval(ev); return ap.status.startsWith('APROVADO');
+      }).length;
+      const areaBelow = areaProfs.length - areaAbove;
+      const areaAvgProd = areaProfs.length
+        ? Math.round(areaProfs.map(getProd).reduce((s,v)=>s+v,0)/areaProfs.length)
+        : 0;
+      const unitAbove = scopeEvs.filter(ev=>getApproval(ev).status.startsWith('APROVADO')).length;
+      const unitPct   = Math.round(unitAbove/total*100);
+      const areaPct   = areaProfs.length ? Math.round(areaAbove/areaProfs.length*100) : 0;
+      const diffPct   = areaPct - unitPct;
+
       const chartTexts={
-        scatter:`Este gráfico posiciona cada professor no espaço Produção × Carga Horária de Ensino, em relação à fronteira de aprovação (linha sólida). ${scopeLabel !== 'Toda a Unidade' ? `Os pontos representam os professores de <strong>${scopeLabel}</strong> no contexto da unidade.` : 'Cada ponto é um professor da unidade.'} Pontos <strong style="color:#2d7a3a">verdes</strong> estão acima da fronteira (meta atingida); <strong style="color:#b33a3a">vermelhos</strong> abaixo. A fronteira tem forma de 'L': professores com alta carga docente precisam de menos produção para aprovação, e vice-versa. Pontos próximos à fronteira indicam professores em situação marginal — pequenas variações podem mover para aprovação ou reprovação no próximo ciclo.`,
-        barArea:`Compara a produção média de cada área com o limiar Xm (linha tracejada = ${T_de>0?Math.round(Tm_de)+' pts':'não definido'}). ${bestArea?`Destaque: <strong>${bestArea.label}</strong> (${bestArea.avgProd} pts).`:''} ${worstArea&&areaStats.length>1?`Atenção: <strong>${worstArea.label}</strong> (${worstArea.avgProd} pts).`:''} Áreas abaixo da linha necessitam intervenção da gestão.`,
-        stacked:`Perfil de atividades de cada área. Azul = Ensino; Roxo = Produção Intelectual. Áreas dominadas por Ensino podem indicar sobrecarga docente. Composição equilibrada tende a melhor desempenho global.`,
-        hbar:`Taxa de meta atingida por área: ${areaStats.filter(a=>a.pctA<50).length>0?`<strong>Crítico (< 50%):</strong> ${fmtList(areaStats.filter(a=>a.pctA<50).map(a=>a.label))}.`:''} ${areaStats.filter(a=>a.pctA>=75).length>0?`<strong>Bom (≥ 75%):</strong> ${fmtList(areaStats.filter(a=>a.pctA>=75).map(a=>a.label))}.`:''} Use para priorizar alocação de recursos.`,
-        hist:`Distribuição de professores por faixa de produção. ${T_de>0?`Vermelho = abaixo do Xm (${T_de} pts): ${scopeEvs.filter(ev=>getProd(ev)<T_de).length} professor(es).`:''} Concentração à esquerda indica necessidade sistêmica de incentivo à produção.`
+        scatter:`Cada círculo representa um professor — a <strong>cor identifica sua área</strong>. O eixo horizontal mede a produção acadêmica (pontos sem aulas); o vertical mede a carga de ensino (h/sem). A <strong>fronteira em forma de L</strong> define a zona de aprovação: à esquerda do joelho esquerdo (${T_de>0?Math.round((8/12)*Tm_de)+' pts':'?'}) o professor precisa de pelo menos 16h/sem de ensino; à direita do joelho direito (${T_de>0?Math.round((16/12)*Tm_de)+' pts':'?'}) basta 8h/sem. Na região diagonal, ensino e produção se compensam mutuamente.
+${reportArea !== AREA_ALL && areaProfs.length > 0 ? `<br><br>Foco em <strong>${scopeLabel}</strong>: ${areaAbove} de ${areaProfs.length} professores (${areaPct}%) estão acima da fronteira — ${diffPct >= 0 ? `<strong style="color:#2d7a3a">${diffPct} p.p. acima</strong> da média da unidade (${unitPct}%)` : `<strong style="color:#b33a3a">${Math.abs(diffPct)} p.p. abaixo</strong> da média da unidade (${unitPct}%)`}. Produção média da área: ${areaAvgProd} pts${T_de>0?' (unidade: '+avgProd+' pts)':''}.` : `<br><br>No conjunto da unidade: ${unitAbove} de ${total} professores (${unitPct}%) atingiram a meta. Produção média: ${avgProd} pts.`}
+<br><br>Pontos <strong>próximos à fronteira</strong> merecem atenção prioritária — uma pequena variação de carga ou produção pode definir aprovação ou não no próximo ciclo.`,
+
+        barArea:`Cada barra representa a produção média de uma área. A linha tracejada marca o limiar Xm × 1,05 = <strong>${T_de>0?Math.round(Tm_de)+' pts':'não definido'}</strong>, referência da unidade para aprovação. ${bestArea?`<strong>${bestArea.label}</strong> lidera com ${bestArea.avgProd} pts — ${T_de>0&&bestArea.avgProd>=Tm_de?'acima do limiar ✓':'abaixo do limiar ⚠'}.`:''} ${worstArea&&areaStats.length>1?`<strong>${worstArea.label}</strong> apresenta o menor desempenho médio (${worstArea.avgProd} pts). `:''} Barras abaixo da linha indicam que a média da área não atinge o referencial — o gestor deve avaliar se a causa é sobrecarga docente, falta de incentivo à pesquisa ou ausência de projetos financiados.`,
+
+        stacked:`A composição das barras revela o perfil acadêmico de cada área. A fatia <strong>azul (Ensino)</strong> predominante pode indicar sobrecarga que limita tempo para pesquisa e extensão. Fatias <strong>roxas (Produção Intelectual)</strong> elevadas sinalizam áreas com boa produção científica. Identifique áreas onde uma categoria domina toda a barra — esses professores podem estar concentrando atividades em um único grupo, o que além de limitar o crescimento pode gerar cortes pelos tetos da Resolução CONSUNI 18/2017.`,
+
+        hbar:`Este gráfico é o <strong>termômetro de gestão</strong> da unidade. Verde ≥ 75% · Laranja ≥ 50% · Vermelho < 50%. ${areaStats.filter(a=>a.pctA<50).length>0?`<strong>Atenção imediata — áreas críticas:</strong> ${fmtList(areaStats.filter(a=>a.pctA<50).map(a=>a.label))}. Menos da metade dos professores atingiu a meta — investigar causas estruturais. `:''} ${areaStats.filter(a=>a.pctA>=75).length>0?`<strong>Áreas com bom desempenho:</strong> ${fmtList(areaStats.filter(a=>a.pctA>=75).map(a=>a.label))} — identificar e replicar as boas práticas dessas áreas.`:''} Use este gráfico para priorizar onde concentrar esforços de apoio e incentivo no próximo ciclo.`,
+
+        hist:`A distribuição mostra quantos professores estão em cada faixa de produção. ${T_de>0?`As barras à esquerda da faixa que contém o Xm (${T_de} pts) representam professores que não atingiram o referencial de produção — ${scopeEvs.filter(ev=>getProd(ev)<T_de).length} de ${total} (${Math.round(scopeEvs.filter(ev=>getProd(ev)<T_de).length/total*100)}%).`:'Defina o limiar Xm para identificar professores abaixo do referencial.'} Uma distribuição concentrada nas faixas mais baixas indica que a unidade como um todo precisa de incentivo sistemático à produção. Distribuição espalhada (alta variância) sugere perfis acadêmicos muito distintos — o gestor pode considerar estratégias diferenciadas por grupo.`
       };
 
       const date=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
