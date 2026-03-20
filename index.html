@@ -1648,8 +1648,19 @@ function App() {
         const area=ev.area===AREA_ALL?'—':(AREAS.find(a=>a.id===ev.area)||{label:ev.area}).label;
         const status=ap.status.replace('REPROVADO','Meta não Atingida').replace('Reprovado','Meta não Atingida');
         const pctV=ev.scores.TOTAL_RAW>0?Math.round(ev.scores.TOTAL/ev.scores.TOTAL_RAW*100)+'%':'—';
-        const hasNec=!T?'—':ap.has>=16?'8h':ap.has>=8?Math.round((24-12*ap.prod/Tm)*10)/10+'h':'>16h';
-        const prodNec=!T?'—':ap.has<8?'----':ap.has>=16?'0':Math.ceil(Tm*(24-ap.has)/12)+'pts';
+        const hasNec = !T ? '—' : isDE
+          ? (ap.prod > (16/12)*Tm ? '8h'
+             : ap.prod <= (8/12)*Tm ? '16h'
+             : Math.round((24-12*ap.prod/Tm)*10)/10 + 'h')
+          : (ap.prod > 1.2*T ? '8h'
+             : ap.prod <= 0.8*T ? '10h'
+             : Math.round((14-ap.prod/(0.2*T))*10)/10 + 'h');
+        const prodNec = !T ? '—'
+          : ap.has < 8
+            ? (isDE ? Math.ceil(Tm*(24-Math.max(ap.has,8))/12)+'pts*' : Math.ceil(0.2*T*(14-Math.max(ap.has,8)))+'pts*')
+            : isDE
+              ? (ap.has>=16 ? '0' : Math.ceil(Tm*(24-ap.has)/12)+'pts')
+              : (ap.has>=10 ? '0' : Math.ceil(0.2*T*(14-ap.has))+'pts');
         return{name:ev.name,area,regime:ev.regime,ens:ev.scores.ENS_TOTAL,pri:ev.scores.PRI,
                psq:ev.scores.PSQ,ext:ev.scores.EXT,adm:ev.scores.ADM,otr:ev.scores.OTR,
                totalRaw:ev.scores.TOTAL_RAW,total:ev.scores.TOTAL,prod:ap.prod,has:ap.has,
@@ -1677,7 +1688,8 @@ function App() {
       }
       // Capture PROD×HAS scatter (DE and 20H)
       // We need both regime variants → we'll reuse whichever is rendered
-      const imgScatter = captureChart('chart-scatter-de');
+      const imgScatter   = captureChart('chart-scatter-de');
+      const imgScatter20 = captureChart('chart-scatter-20h');
       const imgBarArea=captureChart('chart-bar-area');
       const imgStacked=captureChart('chart-stacked');
       const imgHbar=captureChart('chart-hbar');
@@ -1749,7 +1761,17 @@ ${belowMin.length>0?`<li><strong>Atenção urgente</strong> para ${belowMin.leng
       const hmFooterCols = catData.map(c=>'<td><div style="background:#e8eef6;color:#1a4b8c;border-radius:4px;padding:5px 4px;text-align:center;font-weight:700;font-size:8.5pt;font-style:italic">'+c.avg+'</div></td>').join('');
       const heatmapHtml = '<div class="section"><div class="section-title">Mapa de Calor — Categoria × Área</div><p style="font-size:8.5pt;color:#6b6860;margin-bottom:8px">Médias de pontuação por categoria. Verde = acima da média · Vermelho = abaixo. Subtítulo = diferença vs média da unidade.</p><div style="overflow-x:auto"><table><thead><tr><th style=\"text-align:left;min-width:120px\">Área</th><th>Prof</th>'+hmHeaderCols+'</tr></thead><tbody>'+hmDataRows+'<tr style="border-top:2px solid #93aad4"><td style="font-style:italic;color:#6b6860;font-size:8.5pt">Média Unidade</td><td class=\"num\">'+total+'</td>'+hmFooterCols+'</tr></tbody></table></div></div>';
 
-      const reportHtml=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+      // Pre-compute 20H scatter section (avoids nested backticks)
+      const scatter20Section = imgScatter20 ? (
+        '<div class="section"><div class="section-title">Posicionamento \u2014 Professores 20H</div>' +
+        '<div class="chart-box" style="margin-bottom:14px">' +
+        '<h4>Gr\u00e1fico Produ\u00e7\u00e3o \u00d7 H-A \u00b7 Regime 20 Horas</h4>' +
+        imgTag(imgScatter20,'Dispers\u00e3o 20H') +
+        '<div class="chart-analysis">Posicionamento dos professores de regime 20H em rela\u00e7\u00e3o \u00e0 fronteira espec\u00edfica para essa carga (Xm 20H = ' + (T_20||'n\u00e3o definido') + ' pts). C\u00edrcu los = acima da reta (meta atingida); losangos = abaixo. Cada cor representa uma \u00e1rea da unidade.</div>' +
+        '</div></div>'
+      ) : '';
+
+            const reportHtml=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
 <title>Relatório RADOC — ${scopeLabel} — ${date}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -1826,6 +1848,7 @@ tr:nth-child(even){background:#fafaf7}
     <div class="chart-analysis">${chartTexts.scatter}</div>
   </div>
 </div>
+${scatter20Section}
 <div class="section">
   <div class="section-title">Gráficos do Dashboard</div>
   <div class="chart-grid">
@@ -1870,7 +1893,7 @@ ${heatmapHtml}
   </div>
 </div>
 ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho por Área</div><table><thead><tr><th style="text-align:left">Área</th><th>Prof</th><th>Meta</th><th>%Meta</th><th>ProdMéd</th><th>ProdMáx</th><th>ProdMín</th><th>HASMéd</th></tr></thead><tbody>${areaRows}</tbody></table></div>`:''}
-<div class="section"><div class="section-title">Detalhamento Individual</div>
+<div class="section"><div class="section-title">Detalhamento Individual</div><p style="font-size:7.5pt;color:#6b6860;margin-bottom:6px">* HAS necessário calculado com base na produção registrada. Prod necessária marcada com * indica professor com HAS &lt; 8h/sem (mínimo LDB) — a produção indicada seria suficiente se a carga horária mínima fosse cumprida.</p>
 <table><thead><tr><th style="text-align:left;min-width:110px">Nome</th><th>Área</th><th>Reg</th><th>Ens</th><th>PRI</th><th>PSQ</th><th>EXT</th><th>ADM</th><th>Outras</th><th>Tot.RADOC</th><th>Tot.Teto</th><th>%</th><th>Prod</th><th>HAS</th><th style="min-width:100px">Resultado</th><th>HASNec</th><th>ProdNec</th></tr></thead>
 <tbody>${profTbody}</tbody></table></div>
 <div class="footer"><span>SICAD Avaliador · EECA · UFG</span><span>Resolução CONSUNI 18/2017 · ${date}</span></div>
@@ -2026,8 +2049,10 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
   // Pontos: cada professor é um ponto (prod, has) colorido por aprovação
   // ============================================================
   function AnalysisChart({ evaluations, thresholdDE, threshold20 }) {
-    const canvasRef = useRef(null);
-    const chartRef  = useRef(null);
+    const canvasRef   = useRef(null);
+    const chartRef    = useRef(null);
+    const canvas20Ref = useRef(null);
+    const chart20Ref  = useRef(null);
     const [regime, setRegime] = useState('DE');
     const [areaFilter, setAreaFilter] = useState(AREA_ALL);
 
@@ -2251,7 +2276,9 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
               filter: (item) => item.dataset.type === 'scatter',
               callbacks: {
                 label(ctx) {
-                  return `Prod: ${ctx.parsed.x.toFixed(1)} pts  |  HAS: ${ctx.parsed.y.toFixed(2)} h/sem`;
+                  const areaName = (ctx.dataset.label||'').replace(/ [✓✗?]$/, '');
+                  const symbol = ctx.dataset.pointStyle === 'rectRot' ? 'Abaixo' : 'Acima';
+                  return `${areaName} · ${symbol} | Prod: ${ctx.parsed.x.toFixed(1)} pts | HAS: ${ctx.parsed.y.toFixed(2)} h/sem`;
                 },
               },
               backgroundColor: '#1a1a18',
@@ -2309,6 +2336,70 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
       return () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; } };
     }, [buildData]);
 
+    // ── Always-on 20H chart for report capture ────────────────
+    useEffect(() => {
+      if (!canvas20Ref.current) return;
+      if (!threshold20 || !has20H) {
+        if (chart20Ref.current) { chart20Ref.current.destroy(); chart20Ref.current = null; }
+        return;
+      }
+      const T20 = threshold20;
+      const pts20 = evaluations
+        .filter(ev => ev.regime === '20H')
+        .map(ev => {
+          const has  = Math.round((ev.scores.ENS_TOTAL/10)*100)/100;
+          const prod = Math.round((ev.scores.PROJ_ENS+ev.scores.PRI+ev.scores.PSQ+
+            ev.scores.EXT+ev.scores.ADM+ev.scores.RPT+ev.scores.OTR)*100)/100;
+          return { x:prod, y:has, status:approvalStatus(prod,has,T20,false), area:ev.area };
+        });
+      const bnd20 = getBoundary(T20, false);
+      const maxX20 = Math.max(...pts20.map(p=>p.x).filter(v=>v>0), bnd20?bnd20.kneeRight*1.6:300, 80);
+      const xMax20 = Math.ceil(maxX20*1.05/50)*50;
+      const ds20 = [];
+      if (bnd20) ds20.push({ label:'Fronteira', type:'line', order:2,
+        data:[{x:0,y:bnd20.hasTop},{x:bnd20.kneeLeft,y:bnd20.hasTop},
+              {x:bnd20.kneeRight,y:bnd20.hasBot},{x:maxX20,y:bnd20.hasBot}],
+        borderColor:'#1a4b8c', borderWidth:2.5, pointRadius:0, fill:false, tension:0 });
+      [...AREAS, {id:AREA_ALL, label:'Sem área', color:'#888'}].forEach(ar => {
+        const apv = pts20.filter(p=>p.area===ar.id && p.status==='above');
+        const rep = pts20.filter(p=>p.area===ar.id && p.status==='below');
+        if (apv.length) ds20.push({ label:ar.label+' ✓', type:'scatter', order:0,
+          data:apv.map(p=>({x:p.x,y:p.y})), backgroundColor:ar.color+'cc', borderColor:ar.color,
+          borderWidth:2, pointStyle:'circle', pointRadius:9, pointHoverRadius:11 });
+        if (rep.length) ds20.push({ label:ar.label+' ✗', type:'scatter', order:0,
+          data:rep.map(p=>({x:p.x,y:p.y})), backgroundColor:ar.color+'50', borderColor:ar.color,
+          borderWidth:2, pointStyle:'rectRot', pointRadius:9, pointHoverRadius:11 });
+      });
+      if (chart20Ref.current) { chart20Ref.current.destroy(); chart20Ref.current = null; }
+      chart20Ref.current = new Chart(canvas20Ref.current, {
+        type:'scatter', data:{datasets:ds20},
+        options:{ responsive:false, maintainAspectRatio:false,
+          plugins:{
+            legend:{position:'bottom',labels:{
+              generateLabels:(ch)=>{ const seen=new Set();
+                return Chart.defaults.plugins.legend.labels.generateLabels(ch)
+                  .filter(i=>{ const k=(i.text||'').replace(/ [✓✗?]$/,'').trim();
+                    if(seen.has(k))return false; seen.add(k); return true; });
+              }, font:{size:10}, padding:8 }},
+            tooltip:{callbacks:{label:ctx=>{
+              const a=(ctx.dataset.label||'').replace(/ [✓✗?]$/,'');
+              return a+' | Prod:'+ctx.parsed.x.toFixed(1)+' | HAS:'+ctx.parsed.y.toFixed(2)+'h';
+            }}}
+          },
+          scales:{
+            x:{type:'linear',min:0,max:xMax20,
+              title:{display:true,text:'Produção (pts)',font:{size:10},color:'#6b6860'},
+              ticks:{font:{size:9}},grid:{color:'#ebe9e4'}},
+            y:{type:'linear',min:0,max:12,
+              title:{display:true,text:'H-A (h/sem)',font:{size:10},color:'#6b6860'},
+              ticks:{stepSize:2,font:{size:9},callback:v=>v%2===0?v+'h':''},
+              grid:{color:'#ebe9e4'}},
+          },
+        },
+      });
+      return () => { if(chart20Ref.current){chart20Ref.current.destroy();chart20Ref.current=null;} };
+    }, [evaluations, threshold20, has20H]);
+
     // ── Stats ──────────────────────────────────────────────────
     const { pts, T, bnd, isDE } = buildData();
     const above   = pts.filter(p => p.status === 'above').length;
@@ -2360,6 +2451,11 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
         // ── Chart box ──
         e('div', { className:'chart-box', style:{ height:420 } },
           e('canvas', { ref:canvasRef, id:'chart-scatter-de' }),
+        has20H && e('canvas', {
+          ref: canvas20Ref, id:'chart-scatter-20h',
+          width:900, height:400,
+          style:{ position:'absolute', left:'-9999px', top:0 },
+        }),
           e('p', { className:'chart-note' },
             T && T > 0
               ? `T (Xm) = ${T} pts  ·  Reta: ${isDE
@@ -2408,11 +2504,11 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
           e('h3', { style:{ marginTop:16 } }, 'Legenda'),
           e('div', { className:'legend-row' },
             e('span', { className:'legend-dot', style:{ background:'#2d7a3a' } }),
-            e('span', null, 'Aprovado (acima da reta)'),
+            e('span', null, 'Círculo = acima da reta'),
           ),
           e('div', { className:'legend-row' },
             e('span', { className:'legend-dot', style:{ background:'#b33a3a' } }),
-            e('span', null, 'Abaixo da reta'),
+            e('span', null, 'Losango = abaixo · Cor = área'),
           ),
           (!T || T <= 0) && e('div', { className:'legend-row' },
             e('span', { className:'legend-dot', style:{ background:'#9a968d' } }),
