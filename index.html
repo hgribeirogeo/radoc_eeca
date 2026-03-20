@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sistema SICAD+ Escola de Engenharia Civil e Ambiental — UFG v1.0</title>
+<title>SICAD Avaliador — UFG</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -670,6 +670,72 @@ footer {
   border-top-color: white;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
+}
+
+
+/* ── Mapa de Calor ── */
+.heatmap-wrap {
+  overflow-x: auto;
+  margin-top: 6px;
+}
+.heatmap-table {
+  border-collapse: separate;
+  border-spacing: 3px;
+  font-size: 11px;
+  width: 100%;
+}
+.heatmap-table th {
+  background: none;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 6px;
+  text-align: center;
+  white-space: nowrap;
+}
+.heatmap-table th.row-label {
+  text-align: left;
+  min-width: 110px;
+  color: var(--accent);
+}
+.hm-cell {
+  border-radius: 5px;
+  padding: 7px 4px;
+  text-align: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: default;
+  transition: transform 0.1s;
+  min-width: 64px;
+}
+.hm-cell:hover { transform: scale(1.06); z-index: 2; position: relative; }
+.hm-label {
+  font-size: 9px;
+  font-weight: 400;
+  opacity: 0.75;
+  display: block;
+  margin-top: 2px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  white-space: nowrap;
+}
+.hm-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.hm-legend-bar {
+  display: flex;
+  height: 10px;
+  width: 180px;
+  border-radius: 3px;
+  overflow: hidden;
 }
 
 </style>
@@ -1609,6 +1675,9 @@ function App() {
         if(!canvas)return null;
         try{return canvas.toDataURL('image/png');}catch(e){return null;}
       }
+      // Capture PROD×HAS scatter (DE and 20H)
+      // We need both regime variants → we'll reuse whichever is rendered
+      const imgScatter = captureChart('chart-scatter-de');
       const imgBarArea=captureChart('chart-bar-area');
       const imgStacked=captureChart('chart-stacked');
       const imgHbar=captureChart('chart-hbar');
@@ -1644,6 +1713,7 @@ ${belowMin.length>0?`<li><strong>Atenção urgente</strong> para ${belowMin.leng
 </ul>`;
 
       const chartTexts={
+        scatter:`Este gráfico posiciona cada professor no espaço Produção × Carga Horária de Ensino, em relação à fronteira de aprovação (linha sólida). ${scopeLabel !== 'Toda a Unidade' ? `Os pontos representam os professores de <strong>${scopeLabel}</strong> no contexto da unidade.` : 'Cada ponto é um professor da unidade.'} Pontos <strong style="color:#2d7a3a">verdes</strong> estão acima da fronteira (meta atingida); <strong style="color:#b33a3a">vermelhos</strong> abaixo. A fronteira tem forma de 'L': professores com alta carga docente precisam de menos produção para aprovação, e vice-versa. Pontos próximos à fronteira indicam professores em situação marginal — pequenas variações podem mover para aprovação ou reprovação no próximo ciclo.`,
         barArea:`Compara a produção média de cada área com o limiar Xm (linha tracejada = ${T_de>0?Math.round(Tm_de)+' pts':'não definido'}). ${bestArea?`Destaque: <strong>${bestArea.label}</strong> (${bestArea.avgProd} pts).`:''} ${worstArea&&areaStats.length>1?`Atenção: <strong>${worstArea.label}</strong> (${worstArea.avgProd} pts).`:''} Áreas abaixo da linha necessitam intervenção da gestão.`,
         stacked:`Perfil de atividades de cada área. Azul = Ensino; Roxo = Produção Intelectual. Áreas dominadas por Ensino podem indicar sobrecarga docente. Composição equilibrada tende a melhor desempenho global.`,
         hbar:`Taxa de meta atingida por área: ${areaStats.filter(a=>a.pctA<50).length>0?`<strong>Crítico (< 50%):</strong> ${fmtList(areaStats.filter(a=>a.pctA<50).map(a=>a.label))}.`:''} ${areaStats.filter(a=>a.pctA>=75).length>0?`<strong>Bom (≥ 75%):</strong> ${fmtList(areaStats.filter(a=>a.pctA>=75).map(a=>a.label))}.`:''} Use para priorizar alocação de recursos.`,
@@ -1653,6 +1723,31 @@ ${belowMin.length>0?`<li><strong>Atenção urgente</strong> para ${belowMin.leng
       const date=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
       const areaRows=areaStats.map(a=>`<tr><td><span style="display:inline-block;width:9px;height:9px;background:${a.color};border-radius:2px;margin-right:5px;"></span>${a.label}</td><td class="num">${a.count}</td><td class="num">${a.approved}</td><td class="num ${a.pctA>=75?'ok-cell':a.pctA>=50?'warn-cell':'fail-cell'}">${a.pctA}%</td><td class="num">${a.avgProd}</td><td class="num">${a.maxProd}</td><td class="num">${a.minProd}</td><td class="num">${a.avgHAS}h</td></tr>`).join('');
       const profTbody=profRows.map(p=>`<tr class="${p.ok?'ok':'fail'}"><td>${p.name}</td><td style="font-size:8pt">${p.area}</td><td>${p.regime}</td><td class="num">${p.ens}</td><td class="num">${p.pri}</td><td class="num">${p.psq}</td><td class="num">${p.ext}</td><td class="num">${p.adm}</td><td class="num">${p.otr}</td><td class="num">${p.totalRaw}</td><td class="num bold">${p.total}</td><td class="num">${p.pct}</td><td class="num">${p.prod}</td><td class="num">${p.has}h</td><td class="${p.ok?'ok-cell':'fail-cell'}" style="font-size:8pt">${p.status}</td><td>${p.hasNec}</td><td>${p.prodNec}</td></tr>`).join('');
+
+      // Pre-compute heatmap HTML (avoids nested backticks in template literal)
+      function hmColor(t) {
+        const r = t<0.5 ? 192 : Math.round(192-(t-0.5)*2*153);
+        const g = t<0.5 ? Math.round(t*2*174) : 174;
+        const b = t<0.5 ? 43 : Math.round(43+(t-0.5)*2*53);
+        return 'rgb('+r+','+g+','+b+')';
+      }
+      const hmHeaderCols = catData.map(c=>'<th>'+c.label+'</th>').join('');
+      const hmDataRows = AREAS.map(ar=>{
+        const areaEvs = scopeEvs.filter(ev=>ev.area===ar.id);
+        if(!areaEvs.length) return '';
+        const cols = catData.map(c=>{
+          const avg = Math.round(areaEvs.map(ev=>ev.scores[c.key]).reduce((s,v)=>s+v,0)/areaEvs.length);
+          const diff = avg - c.avg;
+          const t = (c.max-c.min)>0 ? (avg-c.min)/(c.max-c.min) : 0.5;
+          const bg = hmColor(t);
+          const fg = t<0.45 ? '#fff' : '#1a1a18';
+          const diffStr = (diff>=0?'+':'')+diff;
+          return '<td><div style="background:'+bg+';color:'+fg+';border-radius:4px;padding:5px 4px;text-align:center;font-weight:700;font-size:8.5pt">'+avg+'<br><span style="font-size:7pt;opacity:.8">'+diffStr+'</span></div></td>';
+        }).join('');
+        return '<tr><td style="font-weight:700;color:'+ar.color+'">'+ar.label+'</td><td class="num">'+areaEvs.length+'</td>'+cols+'</tr>';
+      }).filter(Boolean).join('');
+      const hmFooterCols = catData.map(c=>'<td><div style="background:#e8eef6;color:#1a4b8c;border-radius:4px;padding:5px 4px;text-align:center;font-weight:700;font-size:8.5pt;font-style:italic">'+c.avg+'</div></td>').join('');
+      const heatmapHtml = '<div class="section"><div class="section-title">Mapa de Calor — Categoria × Área</div><p style="font-size:8.5pt;color:#6b6860;margin-bottom:8px">Médias de pontuação por categoria. Verde = acima da média · Vermelho = abaixo. Subtítulo = diferença vs média da unidade.</p><div style="overflow-x:auto"><table><thead><tr><th style=\"text-align:left;min-width:120px\">Área</th><th>Prof</th>'+hmHeaderCols+'</tr></thead><tbody>'+hmDataRows+'<tr style="border-top:2px solid #93aad4"><td style="font-style:italic;color:#6b6860;font-size:8.5pt">Média Unidade</td><td class=\"num\">'+total+'</td>'+hmFooterCols+'</tr></tbody></table></div></div>';
 
       const reportHtml=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
 <title>Relatório RADOC — ${scopeLabel} — ${date}</title>
@@ -1724,6 +1819,14 @@ tr:nth-child(even){background:#fafaf7}
   <div class="narrative">${narrative}</div>
 </div>
 <div class="section">
+  <div class="section-title">Posicionamento em relação à Fronteira de Aprovação</div>
+  <div class="chart-box" style="margin-bottom:14px">
+    <h4>Gráfico Produção × Carga Horária de Ensino (H-A × PROD)</h4>
+    ${imgTag(imgScatter,'Dispersão PROD x HAS')}
+    <div class="chart-analysis">${chartTexts.scatter}</div>
+  </div>
+</div>
+<div class="section">
   <div class="section-title">Gráficos do Dashboard</div>
   <div class="chart-grid">
     <div class="chart-box"><h4>Produção Média por Área</h4>${imgTag(imgBarArea,'Produção por área')}<div class="chart-analysis">${chartTexts.barArea}</div></div>
@@ -1732,6 +1835,38 @@ tr:nth-child(even){background:#fafaf7}
   <div class="chart-grid">
     <div class="chart-box"><h4>Taxa de Meta Atingida por Área</h4>${imgTag(imgHbar,'Taxa de aprovação')}<div class="chart-analysis">${chartTexts.hbar}</div></div>
     <div class="chart-box"><h4>Distribuição da Produção</h4>${imgTag(imgHist,'Histograma')}<div class="chart-analysis">${chartTexts.hist}</div></div>
+  </div>
+</div>
+${heatmapHtml}
+<!-- BOTTLENECK ANALYSIS -->
+<div class="section">
+  <div class="section-title">Análise de Gargalos — ${scopeLabel}</div>
+  <div class="narrative">
+    <h3>Distribuição por Categoria de Atividade</h3>
+    <table style="margin-bottom:10px">
+      <thead><tr><th style="text-align:left">Categoria</th><th>Média (pts)</th><th>Máximo</th><th>Mínimo</th><th>Amplitude</th><th>Participação %</th></tr></thead>
+      <tbody>${catData.map(c=>`<tr><td>${c.label}</td><td class="num bold">${c.avg}</td><td class="num">${c.max}</td><td class="num">${c.min}</td><td class="num">${c.max-c.min}</td><td class="num">${avgProd>0?Math.round(c.avg/avgProd*100)+'%':'—'}</td></tr>`).join('')}</tbody>
+    </table>
+    <h3>Professores em Situação Crítica</h3>
+    ${notMet.filter(p=>p.prod<(T_de*0.5||999)).length>0?
+      `<p><strong>⚠ Produção muito baixa (&lt;50% do Xm):</strong> ${notMet.filter(p=>p.prod<(T_de*0.5||999)).map(p=>`${p.name} (${p.prod} pts)`).join(', ')}. Esses professores requerem acompanhamento prioritário da chefia.</p>`:''}
+    ${profRows.filter(p=>p.has<8).length>0?
+      `<p><strong>⚠ Carga de ensino abaixo do mínimo (&lt;8h/sem):</strong> ${profRows.filter(p=>p.has<8).map(p=>`${p.name} (${p.has}h)`).join(', ')}. Verificar alocação de turmas.</p>`:''}
+    ${profRows.filter(p=>p.capHit).length>0?
+      `<p><strong>ℹ Tetos da Resolução aplicados:</strong> ${profRows.filter(p=>p.capHit).map(p=>p.name).join(', ')}. Orientar sobre diversificação de atividades para maximizar pontuação.</p>`:''}
+    ${profRows.filter(p=>p.ok&&p.prod>=(Tm_de||999)).length>0?
+      `<p><strong>✓ Destaques acima do Xm:</strong> ${profRows.filter(p=>p.ok&&p.prod>=(Tm_de||0)).map(p=>`${p.name} (${p.prod} pts)`).slice(0,5).join(', ')}.</p>`:''}
+    <h3>Índice de Equilíbrio Ensino-Produção</h3>
+    <table>
+      <thead><tr><th style="text-align:left">Professor</th><th>Área</th><th>Regime</th><th>HAS</th><th>Produção</th><th>Razão P/HAS</th><th>Perfil</th></tr></thead>
+      <tbody>${profRows.sort((a,b)=>b.prod-a.prod).map(p=>{
+        const ratio=p.has>0?(p.prod/p.has).toFixed(1):'—';
+        const perfil=p.has>=16&&p.prod<(T_de*0.5||999)?'⚠ Ensino-dominante':
+                     p.has<8&&p.prod>(T_de||0)?'★ Alta produção':
+                     p.ok?'✓ Equilibrado':'! Deficitário';
+        return `<tr><td>${p.name}</td><td style="font-size:8pt">${p.area}</td><td>${p.regime}</td><td class="num">${p.has}h</td><td class="num">${p.prod}</td><td class="num">${ratio}</td><td style="font-size:8.5pt;font-weight:600;color:${p.ok?'#2d7a3a':'#b33a3a'}">${perfil}</td></tr>`;
+      }).join('')}</tbody>
+    </table>
   </div>
 </div>
 ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho por Área</div><table><thead><tr><th style="text-align:left">Área</th><th>Prof</th><th>Meta</th><th>%Meta</th><th>ProdMéd</th><th>ProdMáx</th><th>ProdMín</th><th>HASMéd</th></tr></thead><tbody>${areaRows}</tbody></table></div>`:''}
@@ -2224,7 +2359,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
 
         // ── Chart box ──
         e('div', { className:'chart-box', style:{ height:420 } },
-          e('canvas', { ref:canvasRef }),
+          e('canvas', { ref:canvasRef, id:'chart-scatter-de' }),
           e('p', { className:'chart-note' },
             T && T > 0
               ? `T (Xm) = ${T} pts  ·  Reta: ${isDE
@@ -2300,6 +2435,157 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
   // ============================================================
   // DASHBOARD DE GESTÃO — gráficos e KPIs para o gestor
   // ============================================================
+
+  // ============================================================
+  // MAPA DE CALOR — Categoria × Área
+  // ============================================================
+  function HeatmapChart({ evaluations }) {
+    if (evaluations.length === 0) return null;
+
+    const cats = [
+      { key:'ENS_TOTAL', label:'Ensino'        },
+      { key:'PROJ_ENS',  label:'Proj.Ensino'   },
+      { key:'PRI',       label:'Prod.Intelectual' },
+      { key:'PSQ',       label:'Pesquisa'      },
+      { key:'EXT',       label:'Extensão'      },
+      { key:'ADM',       label:'Admin.'        },
+      { key:'RPT',       label:'Representação' },
+      { key:'OTR',       label:'Outras'        },
+    ];
+
+    // Compute mean per (area, cat)
+    const data = AREAS.map(ar => {
+      const evs = evaluations.filter(ev => ev.area === ar.id);
+      if (!evs.length) return null;
+      const vals = cats.map(c => ({
+        cat: c.key,
+        avg: Math.round(evs.map(ev => ev.scores[c.key]).reduce((s,v)=>s+v,0) / evs.length * 10) / 10,
+        n:   evs.length,
+      }));
+      return { area: ar, vals };
+    }).filter(Boolean);
+
+    if (!data.length) return null;
+
+    // Global min/max per category (for normalisation within each column)
+    const catMinMax = cats.map(c => {
+      const all = data.map(r => r.vals.find(v=>v.cat===c.key)?.avg ?? 0);
+      return { key: c.key, min: Math.min(...all), max: Math.max(...all) };
+    });
+
+    // Colour: green (high) → yellow → red (low)
+    // t=0 → worst (#c0392b), t=1 → best (#27ae60), t=0.5 → #f39c12
+    function heatColor(t) {
+      if (isNaN(t) || t === null) return '#f0f0f0';
+      // red→yellow→green
+      const r = t < 0.5 ? 192 : Math.round(192 - (t-0.5)*2*(192-39));
+      const g = t < 0.5 ? Math.round(t*2*174)  : 174;
+      const b = t < 0.5 ? 43  : Math.round(43  + (t-0.5)*2*(96-43));
+      return `rgb(${r},${g},${b})`;
+    }
+
+    function textColor(t) { return t < 0.45 ? '#fff' : '#1a1a18'; }
+
+    // Also compute "unidade" average per category for the reference row
+    const unidadeRow = cats.map(c => ({
+      cat: c.key,
+      avg: Math.round(evaluations.map(ev=>ev.scores[c.key]).reduce((s,v)=>s+v,0)/evaluations.length*10)/10,
+    }));
+
+    return e('div', { className:'analysis-section' },
+      e('h2', null, 'Mapa de Calor — Produção por Categoria e Área'),
+      e('p', { className:'subtitle' },
+        'Médias de pontuação por categoria de atividade, agrupadas por área. Verde = acima da média da unidade · Vermelho = abaixo.'
+      ),
+      e('div', { className:'heatmap-wrap' },
+        e('table', { className:'heatmap-table' },
+          // Header
+          e('thead', null,
+            e('tr', null,
+              e('th', { className:'row-label' }, 'Área'),
+              e('th', null, 'Prof.'),
+              ...cats.map(c => e('th', { key:c.key }, c.label)),
+            )
+          ),
+          e('tbody', null,
+            // Data rows — one per area
+            ...data.map(row =>
+              e('tr', { key: row.area.id },
+                e('td', { style:{ padding:'4px 6px', fontWeight:600, fontSize:12,
+                    color: row.area.color, whiteSpace:'nowrap' } },
+                  row.area.label
+                ),
+                e('td', { style:{ textAlign:'center', fontFamily:"'IBM Plex Mono',monospace",
+                    fontSize:11, padding:'4px' } },
+                  row.n
+                ),
+                ...cats.map(c => {
+                  const v = row.vals.find(x=>x.cat===c.key);
+                  const mm = catMinMax.find(x=>x.key===c.key);
+                  const range = mm.max - mm.min;
+                  const t = range > 0 ? (v.avg - mm.min) / range : 0.5;
+                  const bg = heatColor(t);
+                  const fg = textColor(t);
+                  // Reference vs unidade
+                  const uniAvg = unidadeRow.find(x=>x.cat===c.key)?.avg ?? 0;
+                  const diff = v.avg - uniAvg;
+                  const diffStr = diff >= 0 ? '+'+diff.toFixed(0) : diff.toFixed(0);
+                  return e('td', { key:c.key },
+                    e('div', {
+                      className:'hm-cell',
+                      style:{ background: bg, color: fg },
+                      title:`${row.area.label} · ${c.label}: ${v.avg} pts (${diffStr} vs média unidade)`
+                    },
+                      v.avg,
+                      e('span', { className:'hm-label' }, diffStr + ' pts')
+                    )
+                  );
+                })
+              )
+            ),
+            // Footer: unidade average row
+            e('tr', { style:{ borderTop:'2px solid var(--border)' } },
+              e('td', { style:{ padding:'4px 6px', fontWeight:700, fontSize:11,
+                  color:'var(--text-secondary)', fontStyle:'italic' } },
+                'Média Unidade'
+              ),
+              e('td', { style:{ textAlign:'center', fontFamily:"'IBM Plex Mono',monospace",
+                  fontSize:11 } },
+                evaluations.length
+              ),
+              ...cats.map(c => {
+                const v = unidadeRow.find(x=>x.cat===c.key);
+                return e('td', { key:c.key },
+                  e('div', {
+                    className:'hm-cell',
+                    style:{ background:'#e8eef6', color:'#1a4b8c', fontStyle:'italic' }
+                  }, v?.avg ?? '—')
+                );
+              })
+            )
+          )
+        )
+      ),
+      // Legend
+      e('div', { className:'hm-legend' },
+        e('span', null, 'Legenda:'),
+        e('div', { className:'hm-legend-bar' },
+          ...Array.from({length:20},(_,i)=>
+            e('div', { key:i, style:{
+              flex:1,
+              background: heatColor(i/19),
+            }})
+          )
+        ),
+        e('span', null, '← Abaixo da média'),
+        e('span', null, 'Acima da média →'),
+        e('span', { style:{marginLeft:12, color:'var(--text-secondary)' } },
+          'Valor = média da área · Subtítulo = diferença em relação à média da unidade'
+        ),
+      ),
+    );
+  }
+
   function DashboardCharts({ evaluations, thresholdDE, threshold20, reportArea, setReportArea, reportLoading, generateReport }) {
     const barAreaRef    = useRef(null);
     const stackedRef    = useRef(null);
@@ -3010,6 +3296,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
       e(SummaryTable),
       evaluations.length > 0 && e(AnalysisChart, { evaluations, thresholdDE, threshold20 }),
       evaluations.length > 0 && e(DashboardCharts, { evaluations, thresholdDE, threshold20, reportArea, setReportArea, reportLoading, generateReport }),
+      evaluations.length > 0 && e(HeatmapChart, { evaluations }),
     ),
 
     e('footer', null, 'SICAD Avaliador · Resolução CONSUNI 18/2017 · UFG'),
