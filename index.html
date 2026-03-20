@@ -2537,8 +2537,6 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
   // MAPA DE CALOR — Categoria × Área
   // ============================================================
   function HeatmapChart({ evaluations }) {
-    if (evaluations.length === 0) return null;
-
     const cats = [
       { key:'ENS_TOTAL', label:'Ensino'        },
       { key:'PROJ_ENS',  label:'Proj.Ensino'   },
@@ -2589,6 +2587,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
       avg: Math.round(evaluations.map(ev=>ev.scores[c.key]).reduce((s,v)=>s+v,0)/evaluations.length*10)/10,
     }));
 
+    if (evaluations.length === 0 || !data.length) return null;
     return e('div', { className:'analysis-section' },
       e('h2', null, 'Mapa de Calor — Produção por Categoria e Área'),
       e('p', { className:'subtitle' },
@@ -2692,8 +2691,6 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
     const stackedChart  = useRef(null);
     const hbarChart     = useRef(null);
     const histChart     = useRef(null);
-
-    if (evaluations.length === 0) return null;
 
     // ── helpers ──────────────────────────────────────────────────
     function getProd(ev) {
@@ -2932,6 +2929,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
       });
     }, [evaluations, thresholdDE, threshold20]);
 
+    if (evaluations.length === 0) return null;
     return e('div', { className:'dashboard-section' },
       e('h2', null, 'Dashboard da Unidade'),
       e('p', { className:'subtitle' }, 'Indicadores para gestão e distribuição de esforço acadêmico.'),
