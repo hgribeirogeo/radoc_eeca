@@ -2104,7 +2104,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
           const prod = Math.round(
             (ev.scores.PROJ_ENS + ev.scores.PRI + ev.scores.PSQ +
              ev.scores.EXT + ev.scores.ADM + ev.scores.RPT + ev.scores.OTR) * 100) / 100;
-          return { x: prod, y: has, status: approvalStatus(prod, has, T, isDE) };
+          return { x: prod, y: has, status: approvalStatus(prod, has, T, isDE), area: ev.area };
         });
 
       // Boundary line — 4 anchor points forming the L-shape
@@ -2207,44 +2207,44 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
         });
       }
 
-      // ── Professor scatter points ────────────────────────────
-      if (above.length) datasets.push({
-        label: `Aprovado (${above.length})`,
-        data: above.map(p => ({ x: p.x, y: p.y })),
-        type: 'scatter',
-        backgroundColor: '#2d7a3a',
-        borderColor: '#1b5224',
-        borderWidth: 1.5,
-        pointRadius: 8,
-        pointHoverRadius: 10,
-        order: 0,
-        z: 10,
-      });
-
-      if (below.length) datasets.push({
-        label: `Abaixo da reta (${below.length})`,
-        data: below.map(p => ({ x: p.x, y: p.y })),
-        type: 'scatter',
-        backgroundColor: '#b33a3a',
-        borderColor: '#7a2020',
-        borderWidth: 1.5,
-        pointRadius: 8,
-        pointHoverRadius: 10,
-        order: 0,
-        z: 10,
-      });
-
-      if (neutral.length) datasets.push({
-        label: `Sem limiar (${neutral.length})`,
-        data: neutral.map(p => ({ x: p.x, y: p.y })),
-        type: 'scatter',
-        backgroundColor: '#9a968d',
-        borderColor: '#6b6860',
-        borderWidth: 1.5,
-        pointRadius: 8,
-        pointHoverRadius: 10,
-        order: 0,
-        z: 10,
+      // ── Professor scatter — coloured by area, shape by status ──
+      // circle = acima da reta  |  diamond (rectRot) = abaixo
+      const allAreaSlots = [...AREAS, { id: AREA_ALL, label: 'Sem área', color: '#888888' }];
+      allAreaSlots.forEach(ar => {
+        const apv = pts.filter(p => p.area === ar.id && p.status === 'above');
+        const rep = pts.filter(p => p.area === ar.id && p.status === 'below');
+        const neu = pts.filter(p => p.area === ar.id && p.status === 'neutral');
+        if (!apv.length && !rep.length && !neu.length) return;
+        if (apv.length) datasets.push({
+          label: ar.label + ' ✓',
+          data: apv.map(p => ({ x: p.x, y: p.y })),
+          type: 'scatter',
+          backgroundColor: ar.color + 'cc',
+          borderColor: ar.color,
+          borderWidth: 2, pointStyle: 'circle',
+          pointRadius: 9, pointHoverRadius: 12,
+          order: 0, z: 10,
+        });
+        if (rep.length) datasets.push({
+          label: ar.label + ' ✗',
+          data: rep.map(p => ({ x: p.x, y: p.y })),
+          type: 'scatter',
+          backgroundColor: ar.color + '50',
+          borderColor: ar.color,
+          borderWidth: 2, pointStyle: 'rectRot',
+          pointRadius: 9, pointHoverRadius: 12,
+          order: 0, z: 10,
+        });
+        if (neu.length) datasets.push({
+          label: ar.label + ' ?',
+          data: neu.map(p => ({ x: p.x, y: p.y })),
+          type: 'scatter',
+          backgroundColor: ar.color + '40',
+          borderColor: ar.color,
+          borderWidth: 1.5, pointStyle: 'circle',
+          pointRadius: 7, pointHoverRadius: 9,
+          order: 0, z: 10,
+        });
       });
 
       if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
@@ -2353,7 +2353,8 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
           return { x:prod, y:has, status:approvalStatus(prod,has,T20,false), area:ev.area };
         });
       const bnd20 = getBoundary(T20, false);
-      const maxX20 = Math.max(...pts20.map(p=>p.x).filter(v=>v>0), bnd20?bnd20.kneeRight*1.6:300, 80);
+      const xVals20 = pts20.map(p=>p.x).filter(v=>v>0);
+      const maxX20 = xVals20.length ? Math.max(...xVals20, bnd20?bnd20.kneeRight*1.6:300, 80) : (bnd20?bnd20.kneeRight*1.8:300);
       const xMax20 = Math.ceil(maxX20*1.05/50)*50;
       const ds20 = [];
       if (bnd20) ds20.push({ label:'Fronteira', type:'line', order:2,
