@@ -1055,16 +1055,15 @@ function normalizeCode(raw) {
 }
 
 async function extractTextFromPDF(file) {
-  const ab = await file.arrayBuffer();
+  const ab  = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
-  let fullText = '';
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const tc = await page.getTextContent();
-    const pageText = tc.items.map(it => it.str).join(' ');
-    fullText += pageText + '\n';
-  }
-  return fullText;
+  const pageNums = Array.from({ length: pdf.numPages }, (_, i) => i + 1);
+  const texts = await Promise.all(pageNums.map(async n => {
+    const page = await pdf.getPage(n);
+    const tc   = await page.getTextContent();
+    return tc.items.map(it => it.str).join(' ');
+  }));
+  return texts.join('\n');
 }
 
 function parseDocenteInfo(text, fileName) {
@@ -1145,7 +1144,8 @@ function parseItems(text) {
   // CORREÇÃO: lookahead em "Pontuação" ou whitespace longo para
   // delimitar o fim do código, permitindo espaços no meio.
   // ─────────────────────────────────────────────────────────
-  const codeRegex = /Item\s+da\s+Resolu[çc][ãa]o[:\s]*([IVX][\w\s.\-]*?)(?=\s+Pontua|\s{4,})/gi;
+  // codeRegex source cached — new RegExp() per call avoids stale lastIndex (global flag)
+  const codeRegex = /Item\s+da\s+Resolu[çc][ãa]o[:\s]*([IVX][\w\s.\-]*?)(?=\s+Pontua|\s{4,})/gi
 
   let match;
   const positions = [];
@@ -2279,7 +2279,21 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
             legend: {
               position: 'bottom',
               labels: {
-                filter: item => item.text !== null && item.text !== undefined,
+                generateLabels: (chart) => {
+                const seen = new Set();
+                return chart.data.datasets
+                  .filter(ds => ds.label && ds.type === 'scatter')
+                  .reduce((acc, ds) => {
+                    const key = ds.label.replace(/ [\u2713\u2717?]$/, '').trim();
+                    if (seen.has(key)) return acc;
+                    seen.add(key);
+                    acc.push({ text: key, fillStyle: ds.backgroundColor,
+                      strokeStyle: ds.borderColor, lineWidth: ds.borderWidth,
+                      pointStyle: 'circle', hidden: false });
+                    return acc;
+                  }, []);
+              },
+
                 font: { family: "'IBM Plex Sans', sans-serif", size: 11 },
                 padding: 14,
                 usePointStyle: true,
@@ -2519,18 +2533,6 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
 
           e('h3', { style:{ marginTop:16 } }, 'Legenda'),
           e('div', { className:'legend-row' },
-            e('span', { className:'legend-dot', style:{ background:'#2d7a3a' } }),
-            e('span', null, 'Círculo = professor · Cor = área'),
-          ),
-          e('div', { className:'legend-row' },
-            e('span', { className:'legend-dot', style:{ background:'#b33a3a' } }),
-            e('span', null, 'Abaixo da reta: mesmo símbolo, mesma cor'),
-          ),
-          (!T || T <= 0) && e('div', { className:'legend-row' },
-            e('span', { className:'legend-dot', style:{ background:'#9a968d' } }),
-            e('span', null, 'Xm não definido'),
-          ),
-          e('div', { className:'legend-row' },
             e('span', { style:{ width:24, height:2.5, background:'#1a4b8c', display:'inline-block' } }),
             e('span', null, 'Fronteira de aprovação'),
           ),
@@ -2563,8 +2565,8 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
       { key:'OTR',       label:'Outras'        },
     ];
 
-    // Compute mean per (area, cat)
-    const data = AREAS.map(ar => {
+    // Memoize heavy computations: area × category matrix + min/max
+    const data = useMemo(() => AREAS.map(ar => {
       const evs = evaluations.filter(ev => ev.area === ar.id);
       if (!evs.length) return null;
       const vals = cats.map(c => ({
@@ -2573,15 +2575,14 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
         n:   evs.length,
       }));
       return { area: ar, vals };
-    }).filter(Boolean);
+    }).filter(Boolean), [evaluations]);
 
     if (!data.length) return null;
 
-    // Global min/max per category (for normalisation within each column)
-    const catMinMax = cats.map(c => {
+    const catMinMax = useMemo(() => cats.map(c => {
       const all = data.map(r => r.vals.find(v=>v.cat===c.key)?.avg ?? 0);
       return { key: c.key, min: Math.min(...all), max: Math.max(...all) };
-    });
+    }), [data]);
 
     // Colour: green (high) → yellow → red (low)
     // t=0 → worst (#c0392b), t=1 → best (#27ae60), t=0.5 → #f39c12
@@ -2720,9 +2721,9 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
     }
     function isApproved(ev) { return getStatus(ev).startsWith('APROVADO'); }
 
-    const areaLabels  = AREAS.map(a => a.label);
-    const areaIds     = AREAS.map(a => a.id);
-    const areaColors  = AREAS.map(a => a.color);
+    const areaLabels = useMemo(() => AREAS.map(a => a.label), []);
+    const areaIds    = useMemo(() => AREAS.map(a => a.id),    []);
+    const areaColors = useMemo(() => AREAS.map(a => a.color), []);
 
     // ── KPIs ─────────────────────────────────────────────────────
     const total      = evaluations.length;
@@ -2996,37 +2997,26 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
         ),
       ),
 
-      // ── Gerador de relatório ──────────────────────────────
-      e('div', { className:'report-bar' },
-        e('label', null, '📄 Gerar Relatório PDF:'),
-        e('select', {
-          value: reportArea,
-          onChange: ev => setReportArea(ev.target.value),
-        },
-          e('option', { value: AREA_ALL }, 'Toda a Unidade (todos os RADOCs)'),
-          ...AREAS.map(ar =>
-            e('option', { key: ar.id, value: ar.id }, ar.label)
-          )
-        ),
-        e('span', { className:'hint' },
-          'O relatório inclui análise automática por IA, tabelas e indicadores detalhados. Será aberto em nova aba para impressão ou salvar como PDF.'
-        ),
-        e('button', {
-          className: 'btn-report',
-          onClick: generateReport,
-          disabled: reportLoading || evaluations.length === 0,
-        },
-          reportLoading
-            ? e('span', { className:'report-spinner' })
-            : '📊',
-          reportLoading ? ' Gerando análise...' : ' Gerar Relatório'
-        ),
-      ),
     );
   }
 
   function SummaryTable() {
     if (evaluations.length === 0) return null;
+
+    const approvalMap = useMemo(() => {
+      const m = new Map();
+      evaluations.forEach(ev =>
+        m.set(ev.id, calculateApproval(ev.scores, ev.regime, thresholdDE, threshold20)));
+      return m;
+    }, [evaluations, thresholdDE, threshold20]);
+
+    const areaMap = useMemo(() => {
+      const m = {};
+      AREAS.forEach(a => { m[a.id] = a; });
+      m[AREA_ALL] = { label: '—', color: '#888' };
+      return m;
+    }, []);
+
     const cols = [
       { key:'ENS_GRAD',  label:'I-Ens\n(GRAD)' },
       { key:'ENS_TOTAL', label:'I-Ens\n(Total)' },
@@ -3145,7 +3135,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
             [...filteredEvs].sort((a,b)=>a.name.localeCompare(b.name)).map(ev => {
               const isDE   = ev.regime !== '20H';
               const T      = isDE ? thresholdDE : threshold20;
-              const approval = calculateApproval(ev.scores, ev.regime, thresholdDE, threshold20);
+              const approval = approvalMap.get(ev.id);
               const isApproved  = approval.status.startsWith('APROVADO');
               const isReprovado = approval.status.startsWith('REPROVADO');
 
@@ -3202,11 +3192,11 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
                   e('span', {
                     className: 'area-badge',
                     style: {
-                      color: (AREAS.find(a=>a.id===ev.area)||{color:'#888'}).color,
-                      borderColor: (AREAS.find(a=>a.id===ev.area)||{color:'#ddd'}).color,
-                      background: (AREAS.find(a=>a.id===ev.area)||{color:'#f5f5f5'}).color + '18',
+                      color: (areaMap[ev.area]||{color:'#888'}).color,
+                      borderColor: (areaMap[ev.area]||{color:'#ddd'}).color,
+                      background: (areaMap[ev.area]||{color:'#f5f5f5'}).color + '18',
                     }
-                  }, ev.area === AREA_ALL ? '—' : (AREAS.find(a=>a.id===ev.area)||{label:ev.area}).label)
+                  }, ev.area === AREA_ALL ? '—' : (areaMap[ev.area]||{label:ev.area}).label)
                 ),
                 e('td', { style:{ textAlign:'center', fontSize:11 } }, ev.regime),
                 ...cols.map(c => e('td', { key:c.key, className:c.key==='TOTAL'?'total-col':'' }, ev.scores[c.key])),
@@ -3248,12 +3238,12 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
               }),
               // Prod avg
               e('td', null, (() => {
-                const vals = filteredEvs.map(ev => calculateApproval(ev.scores, ev.regime, thresholdDE, threshold20).prod);
+                const vals = filteredEvs.map(ev => approvalMap.get(ev.id)?.prod ?? 0);
                 return vals.length ? Math.round(vals.reduce((s,v)=>s+v,0)/vals.length*100)/100 : '—';
               })()),
               // HAS avg
               e('td', null, (() => {
-                const vals = filteredEvs.map(ev => calculateApproval(ev.scores, ev.regime, thresholdDE, threshold20).has);
+                const vals = filteredEvs.map(ev => approvalMap.get(ev.id)?.has ?? 0);
                 return vals.length ? Math.round(vals.reduce((s,v)=>s+v,0)/vals.length*100)/100 : '—';
               })()),
               // % avg
@@ -3268,10 +3258,10 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
               // HAS nec avg
               e('td', { style:{ borderLeft:'2px solid #93aad4' } }, (() => {
                 const vals = filteredEvs.map(ev => {
+                  const ap = approvalMap.get(ev.id);
                   const isDE = ev.regime !== '20H';
                   const T = isDE ? thresholdDE : threshold20;
-                  const prod = calculateApproval(ev.scores, ev.regime, thresholdDE, threshold20).prod;
-                  const v = isDE ? hasNecessario(prod, T) : hasNecessario20(prod, T);
+                  const v = isDE ? hasNecessario(ap.prod, T) : hasNecessario20(ap.prod, T);
                   return typeof v === 'number' ? v : null;
                 }).filter(v => v !== null);
                 return vals.length ? Math.round(vals.reduce((s,v)=>s+v,0)/vals.length*10)/10 + 'h' : '—';
@@ -3279,10 +3269,10 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
               // Prod nec avg
               e('td', null, (() => {
                 const vals = filteredEvs.map(ev => {
+                  const ap = approvalMap.get(ev.id);
                   const isDE = ev.regime !== '20H';
                   const T = isDE ? thresholdDE : threshold20;
-                  const has = calculateApproval(ev.scores, ev.regime, thresholdDE, threshold20).has;
-                  const v = isDE ? prodNecessaria(has, T) : prodNecessaria20(has, T);
+                  const v = isDE ? prodNecessaria(ap.has, T) : prodNecessaria20(ap.has, T);
                   return typeof v === 'number' ? v : null;
                 }).filter(v => v !== null);
                 return vals.length ? Math.round(vals.reduce((s,v)=>s+v,0)/vals.length) : '—';
@@ -3377,36 +3367,49 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
         ))
       ),
 
-      // Cards de avaliação
-      evaluations.length > 0 && e('div', { style:{ marginTop:16 } },
-        e('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 } },
-          e('h2', { style:{ fontSize:16 } }, `${evaluations.length} avaliação(ões)`),
-          e('button', { className:'btn btn-sm btn-danger', onClick:()=>{ setEvaluations([]); setExpanded(null); }}, 'Limpar tudo'),
+      // Contador + botão limpar (cards individuais removidos — dados estão na tabela)
+      evaluations.length > 0 && e('div', {
+        style:{ display:'flex', justifyContent:'space-between', alignItems:'center',
+                margin:'12px 0', padding:'8px 14px',
+                background:'var(--surface)', border:'1px solid var(--border)', borderRadius:6 }
+      },
+        e('span', { style:{ fontSize:14, fontWeight:600, color:'var(--accent)' } },
+          `${evaluations.length} RADOC(s) carregado(s)`
         ),
-        evaluations.map(ev =>
-          e('div', { key:ev.id, className:'eval-card' },
-            e('div', { className:'eval-header', onClick:()=>setExpanded(expanded===ev.id?null:ev.id) },
-              e('div', null,
-                e('span', { className:'eval-name' }, ev.name,
-                  e('small', null, `${ev.itemCount} itens · ${ev.fileName}`)
-                ),
-              ),
-              e('div', { className:'eval-scores' },
-                e(ScorePill, { value:ev.scores.ENS_TOTAL, label:'ENS', color:'#1a4b8c' }),
-                e(ScorePill, { value:ev.scores.PRI, label:'PRI', color:'#7a3b8c' }),
-                e(ScorePill, { value:ev.scores.TOTAL, label:'TOTAL', color:'#333' }),
-                e('button', { className:'btn btn-sm btn-danger', onClick:(evt)=>{ evt.stopPropagation(); handleRemoveEval(ev.id); }, style:{ marginLeft:8 } }, '✕'),
-              ),
-            ),
-            expanded === ev.id && e(EvalDetail, { evaluation:ev }),
-          )
-        ),
+        e('button', {
+          className:'btn btn-sm btn-danger',
+          onClick:()=>{ setEvaluations([]); setExpanded(null); }
+        }, 'Limpar tudo'),
       ),
-
-      e(SummaryTable),
+            e(SummaryTable),
       evaluations.length > 0 && e(AnalysisChart, { evaluations, thresholdDE, threshold20 }),
       evaluations.length > 0 && e(DashboardCharts, { evaluations, thresholdDE, threshold20, reportArea, setReportArea, reportLoading, generateReport }),
       evaluations.length > 0 && e(HeatmapChart, { evaluations }),
+
+      // ── Gerar Relatório — item final após mapa de calor ──────
+      evaluations.length > 0 && e('div', { className:'report-bar' },
+        e('label', null, '📄 Gerar Relatório PDF:'),
+        e('select', {
+          value: reportArea,
+          onChange: ev => setReportArea(ev.target.value),
+        },
+          e('option', { value: AREA_ALL }, 'Toda a Unidade (todos os RADOCs)'),
+          ...AREAS.map(ar =>
+            e('option', { key: ar.id, value: ar.id }, ar.label)
+          )
+        ),
+        e('span', { className:'hint' },
+          'O relatório inclui análise narrativa, gráficos e tabelas completas. Será aberto em nova aba para impressão ou salvar como PDF.'
+        ),
+        e('button', {
+          className: 'btn-report',
+          onClick: generateReport,
+          disabled: reportLoading || evaluations.length === 0,
+        },
+          reportLoading ? e('span', { className:'report-spinner' }) : '📊',
+          reportLoading ? ' Gerando análise...' : ' Gerar Relatório'
+        ),
+      ),
     ),
 
     e('footer', null, 'SICAD Avaliador · Resolução CONSUNI 18/2017 · UFG'),
