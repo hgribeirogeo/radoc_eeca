@@ -2243,9 +2243,9 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
           label: ar.label + ' ✗',
           data: rep.map(p => ({ x: p.x, y: p.y })),
           type: 'scatter',
-          backgroundColor: ar.color + '35',
+          backgroundColor: ar.color + 'cc',
           borderColor: ar.color,
-          borderWidth: 2.5, pointStyle: 'circle',
+          borderWidth: 2, pointStyle: 'circle',
           pointRadius: 9, pointHoverRadius: 12,
           order: 0, z: 10,
         });
@@ -2383,8 +2383,8 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
           data:apv.map(p=>({x:p.x,y:p.y})), backgroundColor:ar.color+'cc', borderColor:ar.color,
           borderWidth:2, pointStyle:'circle', pointRadius:9, pointHoverRadius:11 });
         if (rep.length) ds20.push({ label:ar.label+' ✗', type:'scatter', order:0,
-          data:rep.map(p=>({x:p.x,y:p.y})), backgroundColor:ar.color+'35', borderColor:ar.color,
-          borderWidth:2.5, pointStyle:'circle', pointRadius:9, pointHoverRadius:11 });
+          data:rep.map(p=>({x:p.x,y:p.y})), backgroundColor:ar.color+'cc', borderColor:ar.color,
+          borderWidth:2, pointStyle:'circle', pointRadius:9, pointHoverRadius:11 });
       });
       if (chart20Ref.current) { chart20Ref.current.destroy(); chart20Ref.current = null; }
       chart20Ref.current = new Chart(canvas20Ref.current, {
@@ -2520,11 +2520,11 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
           e('h3', { style:{ marginTop:16 } }, 'Legenda'),
           e('div', { className:'legend-row' },
             e('span', { className:'legend-dot', style:{ background:'#2d7a3a' } }),
-            e('span', null, 'Círculo = acima da reta'),
+            e('span', null, 'Círculo = professor · Cor = área'),
           ),
           e('div', { className:'legend-row' },
             e('span', { className:'legend-dot', style:{ background:'#b33a3a' } }),
-            e('span', null, 'Losango = abaixo · Cor = área'),
+            e('span', null, 'Abaixo da reta: mesmo símbolo, mesma cor'),
           ),
           (!T || T <= 0) && e('div', { className:'legend-row' },
             e('span', { className:'legend-dot', style:{ background:'#9a968d' } }),
