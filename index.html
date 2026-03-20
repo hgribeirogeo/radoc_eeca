@@ -1649,10 +1649,10 @@ function App() {
         const status=ap.status.replace('REPROVADO','Meta não Atingida').replace('Reprovado','Meta não Atingida');
         const pctV=ev.scores.TOTAL_RAW>0?Math.round(ev.scores.TOTAL/ev.scores.TOTAL_RAW*100)+'%':'—';
         const hasNec = !T ? '—' : isDE
-          ? (ap.prod > (16/12)*Tm ? '8h'
+          ? (ap.prod > (16/12)*Tm ? '8h ✓'
              : ap.prod <= (8/12)*Tm ? '16h'
              : Math.round((24-12*ap.prod/Tm)*10)/10 + 'h')
-          : (ap.prod > 1.2*T ? '8h'
+          : (ap.prod > 1.2*T ? '8h ✓'
              : ap.prod <= 0.8*T ? '10h'
              : Math.round((14-ap.prod/(0.2*T))*10)/10 + 'h');
         const prodNec = !T ? '—'
@@ -1710,7 +1710,21 @@ ${areaStats.length>0?`<h3>4. Situação por Área</h3><p>${areaStats.map(a=>`<st
 <h3>5. Análise dos Tetos Aplicados</h3>
 <p>${capHit===0?'Nenhum teto aplicado — atividades bem distribuídas entre as categorias.':
   `${capHit} professor(es) com pontuação reduzida pelos tetos da Resolução. ${highCapHit.length>0?`${highCapHit.length} caso(s) com redução >15% — concentração excessiva em categorias limitadas.`:''} Orientar esses professores a diversificar suas atividades.`}</p>
-${notMet.length>0?`<h3>6. Professores sem Meta Atingida</h3><ul>${notMet.map(p=>`<li><strong>${p.name}</strong> (${p.area}, ${p.regime}): ${p.prod} pts, ${p.has}h/sem.${p.prodNec!=='—'&&p.prodNec!=='0'?` Faltam ${p.prodNec} de produção ou ${p.hasNec} de ensino.`:''}${p.capHit?' Verificar distribuição das atividades (teto aplicado).':''}</li>`).join('')}</ul>`:
+${notMet.length>0?`<h3>6. Professores sem Meta Atingida</h3><ul>${notMet.map(p=>{
+  const hasMin = p.regime==='20H' ? 8 : 8;
+  const hasLDB = p.has < hasMin;
+  let detail = '';
+  if (hasLDB && p.prod >= (T_de||0)) {
+    // Fails only because of HAS < 8h (LDB minimum) — production is sufficient
+    detail = ` <strong>Produção suficiente (${p.prod} pts ≥ Xm), mas HAS abaixo do mínimo legal: ${p.has}h/sem < 8h/sem.</strong> Aumentar carga de ensino para ao menos 8h/sem resolve a situação.`;
+  } else if (hasLDB) {
+    detail = ` HAS abaixo do mínimo legal (${p.has}h/sem < 8h/sem). Aumentar carga de ensino.`;
+    if (p.prod < (T_de||0)) detail += ` Produção também insuficiente (${p.prod} pts).`;
+  } else if (p.prodNec!=='—'&&p.prodNec!=='0') {
+    detail = ` Faltam ${p.prodNec} de produção ou ${p.hasNec} de ensino para atingir a meta.`;
+  }
+  return `<li><strong>${p.name}</strong> (${p.area}, ${p.regime}): ${p.prod} pts, ${p.has}h/sem.${detail}${p.capHit?' Verificar distribuição das atividades (teto aplicado).':''}</li>`;
+}).join('')}</ul>`:
 `<h3>6. Destaques</h3><p>Todos atingiram a meta. Maiores produções: ${best3.map(p=>`<strong>${p.name}</strong> (${p.prod} pts)`).join(', ')}.</p>`}
 <h3>7. Recomendações</h3>
 <ul>
@@ -2229,9 +2243,9 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
           label: ar.label + ' ✗',
           data: rep.map(p => ({ x: p.x, y: p.y })),
           type: 'scatter',
-          backgroundColor: ar.color + '50',
+          backgroundColor: ar.color + '35',
           borderColor: ar.color,
-          borderWidth: 2, pointStyle: 'rectRot',
+          borderWidth: 2.5, pointStyle: 'circle',
           pointRadius: 9, pointHoverRadius: 12,
           order: 0, z: 10,
         });
@@ -2369,8 +2383,8 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
           data:apv.map(p=>({x:p.x,y:p.y})), backgroundColor:ar.color+'cc', borderColor:ar.color,
           borderWidth:2, pointStyle:'circle', pointRadius:9, pointHoverRadius:11 });
         if (rep.length) ds20.push({ label:ar.label+' ✗', type:'scatter', order:0,
-          data:rep.map(p=>({x:p.x,y:p.y})), backgroundColor:ar.color+'50', borderColor:ar.color,
-          borderWidth:2, pointStyle:'rectRot', pointRadius:9, pointHoverRadius:11 });
+          data:rep.map(p=>({x:p.x,y:p.y})), backgroundColor:ar.color+'35', borderColor:ar.color,
+          borderWidth:2.5, pointStyle:'circle', pointRadius:9, pointHoverRadius:11 });
       });
       if (chart20Ref.current) { chart20Ref.current.destroy(); chart20Ref.current = null; }
       chart20Ref.current = new Chart(canvas20Ref.current, {
