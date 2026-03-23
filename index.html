@@ -2268,17 +2268,34 @@ ${heatmapHtml}
     ${profRows.filter(p=>p.has<8).length>0?
       `<p><strong>⚠ Carga de ensino abaixo do mínimo (&lt;8h/sem):</strong> ${profRows.filter(p=>p.has<8).map(p=>`${p.name} (${p.has}h)`).join(', ')}. Verificar alocação de turmas.</p>`:''}
     ${profRows.filter(p=>p.capHit).length>0?
-      `<p><strong>ℹ Tetos da Resolução aplicados:</strong> ${profRows.filter(p=>p.capHit).map(p=>p.name).join(', ')}. Orientar sobre diversificação de atividades para maximizar pontuação.</p>`:''}
-    ${profRows.filter(p=>p.ok&&p.prod>=(Tm_de||999)).length>0?
-      `<p><strong>✓ Destaques acima do Xm:</strong> ${profRows.filter(p=>p.ok&&p.prod>=(Tm_de||0)).map(p=>`${p.name} (${p.prod} pts)`).slice(0,5).join(', ')}.</p>`:''}
+      (() => {
+          const significantCap = profRows.filter(p => p.capHit && p.pct !== '—' && parseInt(p.pct) < 95 && parseInt(p.pct) >= 60);
+          const minorCap       = profRows.filter(p => p.capHit && p.pct !== '—' && parseInt(p.pct) >= 95);
+          const unknownCap     = profRows.filter(p => p.capHit && (p.pct === '—' || isNaN(parseInt(p.pct))));
+          let msg = '';
+          if (significantCap.length > 0)
+            msg += `<p><strong>ℹ Tetos com impacto significativo (60–95% do RADOC aproveitado):</strong> ${significantCap.map(p=>p.name+' ('+p.pct+')').join(', ')}. Diversificar atividades pode aumentar a pontuação final desses professores.</p>`;
+          if (minorCap.length > 0)
+            msg += `<p><strong>ℹ Tetos com impacto menor (≥95% do RADOC aproveitado):</strong> ${minorCap.map(p=>p.name+' ('+p.pct+')').join(', ')}. Impacto reduzido — produção bem distribuída.</p>`;
+          if (unknownCap.length > 0)
+            msg += `<p><strong>ℹ Tetos aplicados (% não calculada):</strong> ${unknownCap.map(p=>p.name).join(', ')}.</p>`;
+          return msg;
+        })():''}
+    ${(()=>{
+        const xmDest = Tm_de > 0 ? Tm_de : 0;
+        const dest = profRows.filter(p=>p.ok && p.prod >= xmDest && xmDest > 0);
+        if (!dest.length) return '';
+        return `<p><strong>✓ Destaques — produção acima do Xm (${Math.round(xmDest)} pts):</strong> ${dest.map(p=>p.name+' ('+p.prod+' pts)').join(', ')}.</p>`;
+      })()}
     <h3>Índice de Equilíbrio Ensino-Produção</h3>
     <table>
       <thead><tr><th style="text-align:left">Professor</th><th>Área</th><th>Regime</th><th>HAS</th><th>Produção</th><th>Razão P/HAS</th><th>Perfil</th></tr></thead>
       <tbody>${profRows.sort((a,b)=>b.prod-a.prod).map(p=>{
         const ratio=p.has>0?(p.prod/p.has).toFixed(1):'—';
-        const perfil=p.has>=16&&p.prod<(T_de*0.5||999)?'⚠ Ensino-dominante':
-                     p.has<8&&p.prod>(T_de||0)?'★ Alta produção':
-                     p.ok?'✓ Equilibrado':'! Deficitário';
+        const perfil=p.has<8                              ?'⚠ HAS insuficiente':
+                     p.has>=16&&p.prod<((T_de||0)*0.5)   ?'⚠ Ensino-dominante':
+                     p.has>=8&&p.prod>=(T_de||0)*1.5     ?'★ Alta produção':
+                     p.ok                                 ?'✓ Equilibrado':'! Deficitário';
         return `<tr><td>${p.name}</td><td style="font-size:8pt">${p.area}</td><td>${p.regime}</td><td class="num">${p.has}h</td><td class="num">${p.prod}</td><td class="num">${ratio}</td><td style="font-size:8.5pt;font-weight:600;color:${p.ok?'#2d7a3a':'#b33a3a'}">${perfil}</td></tr>`;
       }).join('')}</tbody>
     </table>
