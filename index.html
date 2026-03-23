@@ -2911,7 +2911,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
         options:{ plugins:{ legend:{display:false} } }
       }); return; }
 
-      const T = thresholdDE > 0 ? thresholdDE : threshold20;
+      const T = dashRegime === '20H' ? threshold20 : (thresholdDE > 0 ? thresholdDE : threshold20);
       buildChart(barAreaRef, barAreaChart, {
         type: 'bar',
         data: {
@@ -2926,7 +2926,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
               borderRadius: 4,
             },
             T > 0 ? {
-              label: 'Limiar Xm (1,05×T)',
+              label: dashRegime === '20H' ? 'Limiar Xm 20H (1,05×T)' : 'Limiar Xm (1,05×T)',
               data: areaLabels.map(() => Math.round(1.05 * T)),
               type: 'line',
               borderColor: '#1a4b8c',
