@@ -2730,6 +2730,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
     const stackedChart  = useRef(null);
     const hbarChart     = useRef(null);
     const histChart     = useRef(null);
+    const [dashRegime, setDashRegime] = useState('all');
 
     // ── helpers ──────────────────────────────────────────────────
     function getProd(ev) {
