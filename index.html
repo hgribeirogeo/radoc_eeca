@@ -808,11 +808,11 @@ footer {
 
 // ── Áreas da unidade ────────────────────────────────────────────────
 const AREAS = [
-  { id: 'civil',     label: 'Construção Civil',           color: '#1a4b8c' },
-  { id: 'estrut',    label: 'Estruturas',                 color: '#7a3b8c' },
-  { id: 'geotec',    label: 'Geotecnia',                  color: '#2d7a3a' },
-  { id: 'gestao',    label: 'Gestão e Geomática',         color: '#b36b1a' },
-  { id: 'hidro',     label: 'Hidráulica e Saneamento',    color: '#8c3b3b' },
+  { id: 'civil',     label: 'Construção Civil',           color: '#4a1a6e' }, // roxo escuro
+  { id: 'estrut',    label: 'Estruturas',                 color: '#7a7a7a' }, // cinza claro
+  { id: 'geotec',    label: 'Geotecnia',                  color: '#7a4f2a' }, // marrom terra
+  { id: 'gestao',    label: 'Gestão e Geomática',         color: '#4a6e3a' }, // verde musgo
+  { id: 'hidro',     label: 'Hidráulica e Saneamento',    color: '#2a7a8c' }, // azul água
 ];
 const AREA_ALL = 'all';
 
@@ -2433,7 +2433,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
               callbacks: {
                 label(ctx) {
                   const areaName = (ctx.dataset.label||'').replace(/ [✓✗?]$/, '');
-                  const symbol = ctx.dataset.pointStyle === 'rectRot' ? 'Abaixo' : 'Acima';
+                  const symbol = (ctx.dataset.label||'').endsWith(' ✗') ? 'Abaixo da reta' : (ctx.dataset.label||'').endsWith(' ✓') ? 'Acima da reta' : 'Neutro';
                   return `${areaName} · ${symbol} | Prod: ${ctx.parsed.x.toFixed(1)} pts | HAS: ${ctx.parsed.y.toFixed(2)} h/sem`;
                 },
               },
@@ -2651,11 +2651,11 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
             e('span', { className:'stat-value' }, avgHAS.toFixed(2)),
           ),
           T>0 && bnd && e('div', { className:'stat-row' },
-            e('span', { className:'stat-label' }, 'Joelho esquerdo'),
+            e('span', { className:'stat-label' }, 'Inflexão esquerda'),
             e('span', { className:'stat-value blue' }, `${bnd.kneeLeft.toFixed(0)} pts`),
           ),
           T>0 && bnd && e('div', { className:'stat-row' },
-            e('span', { className:'stat-label' }, 'Joelho direito'),
+            e('span', { className:'stat-label' }, 'Inflexão direita'),
             e('span', { className:'stat-value blue' }, `${bnd.kneeRight.toFixed(0)} pts`),
           ),
 
@@ -2862,8 +2862,8 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
     const areaColors = useMemo(() => AREAS.map(a => a.color), []);
 
     // ── KPIs ─────────────────────────────────────────────────────
-    const total      = evaluations.length;
-    const approved   = evaluations.filter(isApproved).length;
+    const total      = dashEvs.length;
+    const approved   = dashEvs.filter(isApproved).length;
     const notMet     = total - approved;
     const pctAprov   = total ? Math.round(approved / total * 100) : 0;
     const allProd    = dashEvs.map(getProd);
