@@ -2732,6 +2732,13 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
     const histChart     = useRef(null);
     const [dashRegime, setDashRegime] = useState('all');
 
+    // ── dashEvs MUST be declared here — before KPI lines that use it ──
+    // (declaring after would cause TDZ since const is block-scoped)
+    const dashEvs  = dashRegime === 'all' ? evaluations
+      : evaluations.filter(ev => dashRegime === 'DE' ? ev.regime !== '20H' : ev.regime === '20H');
+    const hasDE_d  = evaluations.some(ev => ev.regime !== '20H');
+    const has20H_d = evaluations.some(ev => ev.regime === '20H');
+
     // ── helpers ──────────────────────────────────────────────────
     function getProd(ev) {
       return Math.round((ev.scores.PROJ_ENS + ev.scores.PRI + ev.scores.PSQ +
@@ -2785,14 +2792,6 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
       if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
       chartRef.current = new Chart(ref.current, config);
     }
-
-    // ── dashEvs: declared HERE (before useEffects) to prevent TDZ ──
-    // React evaluates dep arrays when each useEffect hook is called,
-    // so dashEvs must exist at that point in the function body.
-    const dashEvs = dashRegime === 'all' ? evaluations
-      : evaluations.filter(ev => dashRegime === 'DE' ? ev.regime !== '20H' : ev.regime === '20H');
-    const hasDE_d  = evaluations.some(ev => ev.regime !== '20H');
-    const has20H_d = evaluations.some(ev => ev.regime === '20H');
 
     // ── Chart 1: Produção média por área (bar + threshold line) ──
     useEffect(() => {
