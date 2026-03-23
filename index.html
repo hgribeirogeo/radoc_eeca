@@ -1795,10 +1795,19 @@ function App() {
       // We need both regime variants → we'll reuse whichever is rendered
       const imgScatter   = captureChart('chart-scatter-de');
       const imgScatter20 = captureChart('chart-scatter-20h');
-      const imgBarArea=captureChart('chart-bar-area');
-      const imgStacked=captureChart('chart-stacked');
-      const imgHbar=captureChart('chart-hbar');
-      const imgHist=captureChart('chart-hist');
+      const imgBarAreaDE  = captureChart('rp-bar-de');
+      const imgStackedDE  = captureChart('rp-stack-de');
+      const imgHbarDE     = captureChart('rp-hbar-de');
+      const imgHistDE     = captureChart('rp-hist-de');
+      const imgBarArea20  = captureChart('rp-bar-20h');
+      const imgStacked20  = captureChart('rp-stack-20h');
+      const imgHbar20     = captureChart('rp-hbar-20h');
+      const imgHist20     = captureChart('rp-hist-20h');
+      // Fallback aliases for backward compat with chart text vars
+      const imgBarArea = imgBarAreaDE || captureChart('chart-bar-area');
+      const imgStacked = imgStackedDE || captureChart('chart-stacked');
+      const imgHbar    = imgHbarDE    || captureChart('chart-hbar');
+      const imgHist    = imgHistDE    || captureChart('chart-hist');
       function imgTag(src,alt){
         return src?`<img src="${src}" alt="${alt}" style="width:100%;max-height:280px;object-fit:contain;border-radius:4px;border:1px solid #e0ddd5;margin:6px 0">`:
           `<p style="color:#9a968d;font-style:italic;text-align:center;padding:16px">[Gráfico não disponível — os gráficos do Dashboard precisam estar visíveis antes de gerar o relatório]</p>`;
@@ -1861,7 +1870,7 @@ ${belowMin.length>0?`<li><strong>Atenção urgente</strong> para ${belowMin.leng
       const diffPct   = areaPct - unitPct;
 
       const chartTexts={
-        scatter:`Cada círculo representa um professor — a <strong>cor identifica sua área</strong>. O eixo horizontal mede a produção acadêmica (pontos sem aulas); o vertical mede a carga de ensino (h/sem). A <strong>fronteira em forma de L</strong> define a zona de aprovação: à esquerda do joelho esquerdo (${T_de>0?Math.round((8/12)*Tm_de)+' pts':'?'}) o professor precisa de pelo menos 16h/sem de ensino; à direita do joelho direito (${T_de>0?Math.round((16/12)*Tm_de)+' pts':'?'}) basta 8h/sem. Na região diagonal, ensino e produção se compensam mutuamente.
+        scatter:`Cada círculo representa um professor — a <strong>cor identifica sua área</strong>. O eixo horizontal mede a produção acadêmica (pontos sem aulas); o vertical mede a carga de ensino (h/sem). A <strong>fronteira em forma de L</strong> define a zona de aprovação: à esquerda da inflexão esquerda da reta (${T_de>0?Math.round((8/12)*Tm_de)+' pts':'?'}) o professor precisa de pelo menos 16h/sem de ensino; à direita da inflexão direita da reta (${T_de>0?Math.round((16/12)*Tm_de)+' pts':'?'}) basta 8h/sem. Na região diagonal, ensino e produção se compensam mutuamente.
 ${reportArea !== AREA_ALL && areaProfs.length > 0 ? `<br><br>Foco em <strong>${scopeLabel}</strong>: ${areaAbove} de ${areaProfs.length} professores (${areaPct}%) estão acima da fronteira — ${diffPct > 0 ? `<strong style="color:#2d7a3a">+${diffPct}% acima</strong> da média da unidade (${unitPct}%)` : diffPct < 0 ? `<strong style="color:#b33a3a">${diffPct}% abaixo</strong> da média da unidade (${unitPct}%)` : `<strong style="color:#b36b1a">igual</strong> à média da unidade (${unitPct}%)`}. Produção média da área: ${areaAvgProd} pts${T_de>0?' (unidade: '+avgProd+' pts)':''}.` : `<br><br>No conjunto da unidade: ${unitAbove} de ${total} professores (${unitPct}%) atingiram a meta. Produção média: ${avgProd} pts.`}
 <br><br>Pontos <strong>próximos à fronteira</strong> merecem atenção prioritária — uma pequena variação de carga ou produção pode definir aprovação ou não no próximo ciclo.`,
 
@@ -1992,16 +2001,27 @@ tr:nth-child(even){background:#fafaf7}
 </div>
 ${scatter20Section}
 <div class="section">
-  <div class="section-title">Gráficos do Dashboard</div>
+  <div class="section-title">Gráficos do Dashboard — Regime DE / 40H</div>
   <div class="chart-grid">
-    <div class="chart-box"><h4>Produção Média por Área</h4>${imgTag(imgBarArea,'Produção por área')}<div class="chart-analysis">${chartTexts.barArea}</div></div>
-    <div class="chart-box"><h4>Composição das Atividades por Área</h4>${imgTag(imgStacked,'Composição empilhada')}<div class="chart-analysis">${chartTexts.stacked}</div></div>
+    <div class="chart-box"><h4>Produção Média por Área — DE/40H</h4>${imgTag(imgBarAreaDE,'Produção por área DE')}<div class="chart-analysis">${chartTexts.barArea}</div></div>
+    <div class="chart-box"><h4>Composição das Atividades por Área — DE/40H</h4>${imgTag(imgStackedDE,'Composição empilhada DE')}<div class="chart-analysis">${chartTexts.stacked}</div></div>
   </div>
   <div class="chart-grid">
-    <div class="chart-box"><h4>Taxa de Meta Atingida por Área</h4>${imgTag(imgHbar,'Taxa de aprovação')}<div class="chart-analysis">${chartTexts.hbar}</div></div>
-    <div class="chart-box"><h4>Distribuição da Produção</h4>${imgTag(imgHist,'Histograma')}<div class="chart-analysis">${chartTexts.hist}</div></div>
+    <div class="chart-box"><h4>Taxa Acima da Reta por Área — DE/40H</h4>${imgTag(imgHbarDE,'Taxa aprovação DE')}<div class="chart-analysis">${chartTexts.hbar}</div></div>
+    <div class="chart-box"><h4>Distribuição da Produção — DE/40H</h4>${imgTag(imgHistDE,'Histograma DE')}<div class="chart-analysis">${chartTexts.hist}</div></div>
   </div>
 </div>
+${(imgBarArea20||imgStacked20||imgHbar20||imgHist20) ? `<div class="section">
+  <div class="section-title">Gráficos do Dashboard — Regime 20H</div>
+  <div class="chart-grid">
+    <div class="chart-box"><h4>Produção Média por Área — 20H</h4>\${imgTag(imgBarArea20,'Produção por área 20H')}</div>
+    <div class="chart-box"><h4>Composição das Atividades por Área — 20H</h4>\${imgTag(imgStacked20,'Composição empilhada 20H')}</div>
+  </div>
+  <div class="chart-grid">
+    <div class="chart-box"><h4>Taxa Acima da Reta por Área — 20H</h4>\${imgTag(imgHbar20,'Taxa aprovação 20H')}</div>
+    <div class="chart-box"><h4>Distribuição da Produção — 20H</h4>\${imgTag(imgHist20,'Histograma 20H')}</div>
+  </div>
+</div>` : ''}
 ${heatmapHtml}
 <!-- BOTTLENECK ANALYSIS -->
 <div class="section">
@@ -2835,6 +2855,15 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
     const stackedChart  = useRef(null);
     const hbarChart     = useRef(null);
     const histChart     = useRef(null);
+    // Hidden offscreen canvases — always render DE and 20H independently for report capture
+    const rpBarDeRef    = useRef(null); const rpBarDeChart    = useRef(null);
+    const rpStackDeRef  = useRef(null); const rpStackDeChart  = useRef(null);
+    const rpHbarDeRef   = useRef(null); const rpHbarDeChart   = useRef(null);
+    const rpHistDeRef   = useRef(null); const rpHistDeChart   = useRef(null);
+    const rpBar20Ref    = useRef(null); const rpBar20Chart    = useRef(null);
+    const rpStack20Ref  = useRef(null); const rpStack20Chart  = useRef(null);
+    const rpHbar20Ref   = useRef(null); const rpHbar20Chart   = useRef(null);
+    const rpHist20Ref   = useRef(null); const rpHist20Chart   = useRef(null);
     const [dashRegime, setDashRegime] = useState('all');
 
     // ── dashEvs MUST be declared here — before KPI lines that use it ──
@@ -3080,6 +3109,96 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
         },
       });
     }, [dashEvs, thresholdDE, threshold20]);
+
+    // ── Report-capture charts (hidden, always rendered) ──────────
+    function buildReportCharts(evs, regime, refs, thDE, th20) {
+      const [barRef, barChart, stackRef, stackChart, hbarRef2, hbarChart2, histRef2, histChart2] = refs;
+      const thr = regime === '20H' ? th20 : thDE;
+      const Tm  = 1.05 * thr;
+
+      // Bar — avg prod per area
+      const areaData = areaIds.map(id => {
+        const a = evs.filter(ev => ev.area === id);
+        return a.length ? Math.round(a.map(getProd).reduce((s,v)=>s+v,0)/a.length) : null;
+      });
+      buildChart(barRef, barChart, { type:'bar', data:{ labels:areaLabels,
+        datasets:[
+          { label:'Produção Média', data:areaData,
+            backgroundColor:areaColors.map(c=>c+'cc'), borderColor:areaColors, borderWidth:2, borderRadius:3 },
+          thr>0 ? { label:'Limiar Xm', data:areaLabels.map(()=>Math.round(Tm)),
+            type:'line', borderColor:'#1a4b8c', borderWidth:2, borderDash:[6,3], pointRadius:0, fill:false } : null,
+        ].filter(Boolean) },
+        options:{ responsive:false, maintainAspectRatio:false,
+          plugins:{ legend:{position:'bottom',labels:{font:{size:9},padding:8}} },
+          scales:{ x:{ticks:{font:{size:9}},grid:{display:false}},
+                   y:{beginAtZero:true,ticks:{font:{size:9},callback:v=>v+' pts'},grid:{color:'#ebe9e4'}} } }
+      });
+
+      // Stacked
+      const catKeys  = ['ENS_TOTAL','PROJ_ENS','PRI','PSQ','EXT','ADM','RPT','OTR'];
+      const catLabels= ['Ensino','Proj.Ensino','Prod.Intel.','Pesquisa','Extensão','Admin.','Repres.','Outras'];
+      const catColors= ['#1a4b8c','#3b7ab8','#7a3b8c','#2d7a3a','#b36b1a','#8c3b3b','#3b6b8c','#5a5a5a'];
+      buildChart(stackRef, stackChart, { type:'bar', data:{ labels:areaLabels,
+        datasets:catKeys.map((key,i)=>({ label:catLabels[i],
+          data:areaIds.map(id=>{ const a=evs.filter(ev=>ev.area===id); return a.length?Math.round(a.map(ev=>ev.scores[key]).reduce((s,v)=>s+v,0)/a.length):0; }),
+          backgroundColor:catColors[i]+'dd', borderWidth:0, borderRadius:2 })) },
+        options:{ responsive:false, maintainAspectRatio:false,
+          plugins:{ legend:{position:'bottom',labels:{font:{size:9},padding:6,boxWidth:10}} },
+          scales:{ x:{stacked:true,ticks:{font:{size:9}},grid:{display:false}},
+                   y:{stacked:true,beginAtZero:true,ticks:{font:{size:9},callback:v=>v+'pts'},grid:{color:'#ebe9e4'}} } }
+      });
+
+      // HBar — approval rate per area
+      const allAreaIds2 = [...areaIds, AREA_ALL];
+      const allLabels2  = [...areaLabels, 'Sem área'];
+      const hData  = allAreaIds2.map(id=>{ const a=evs.filter(ev=>id===AREA_ALL?ev.area===AREA_ALL:ev.area===id); if(!a.length)return null; return Math.round(a.filter(ev=>calculateApproval(ev.scores,ev.regime,thDE,th20).status.startsWith('APROVADO')).length/a.length*100); });
+      const hColors = hData.map(v=>v===null?'transparent':v>=75?'#2d7a3a':v>=50?'#b36b1a':'#b33a3a');
+      buildChart(hbarRef2, hbarChart2, { type:'bar', data:{ labels:allLabels2,
+        datasets:[{ label:'%',data:hData,backgroundColor:hColors.map(c=>c+'cc'),borderColor:hColors,borderWidth:2,borderRadius:3 }] },
+        options:{ indexAxis:'y', responsive:false, maintainAspectRatio:false,
+          plugins:{ legend:{display:false} },
+          scales:{ x:{min:0,max:100,ticks:{callback:v=>v+'%',font:{size:9}},grid:{color:'#ebe9e4'}},
+                   y:{ticks:{font:{size:9}},grid:{display:false}} } }
+      });
+
+      // Hist
+      const bins=[0,100,200,300,400,500,600,800,1000,Infinity];
+      const binLabels=['0-100','100-200','200-300','300-400','400-500','500-600','600-800','800-1k','1k+'];
+      const counts=Array(bins.length-1).fill(0);
+      evs.forEach(ev=>{ const p=getProd(ev); for(let i=0;i<bins.length-1;i++){if(p>=bins[i]&&p<bins[i+1]){counts[i]++;break;}} });
+      const threshBin=thr>0?bins.findIndex((b,i2)=>thr>=b&&thr<bins[i2+1]):-1;
+      buildChart(histRef2, histChart2, { type:'bar', data:{ labels:binLabels,
+        datasets:[{ label:'Profs', data:counts,
+          backgroundColor:counts.map((_,i)=>i<threshBin?'#b33a3acc':'#2d7a3acc'),
+          borderColor:counts.map((_,i)=>i<threshBin?'#b33a3a':'#2d7a3a'),
+          borderWidth:2, borderRadius:3 }] },
+        options:{ responsive:false, maintainAspectRatio:false,
+          plugins:{ legend:{display:false} },
+          scales:{ x:{ticks:{font:{size:9}},grid:{display:false}},
+                   y:{beginAtZero:true,ticks:{stepSize:1,font:{size:9}},grid:{color:'#ebe9e4'}} } }
+      });
+    }
+
+    const hasDE_evs  = evaluations.some(ev => ev.regime !== '20H');
+    const has20H_evs = evaluations.some(ev => ev.regime === '20H');
+    const deEvs  = evaluations.filter(ev => ev.regime !== '20H');
+    const h20Evs = evaluations.filter(ev => ev.regime === '20H');
+
+    useEffect(() => {
+      if (!hasDE_evs) return;
+      buildReportCharts(deEvs, 'DE',
+        [rpBarDeRef, rpBarDeChart, rpStackDeRef, rpStackDeChart, rpHbarDeRef, rpHbarDeChart, rpHistDeRef, rpHistDeChart],
+        thresholdDE, threshold20);
+      return () => { [rpBarDeChart,rpStackDeChart,rpHbarDeChart,rpHistDeChart].forEach(r=>{ if(r.current){r.current.destroy();r.current=null;} }); };
+    }, [evaluations, thresholdDE, threshold20]);
+
+    useEffect(() => {
+      if (!has20H_evs) return;
+      buildReportCharts(h20Evs, '20H',
+        [rpBar20Ref, rpBar20Chart, rpStack20Ref, rpStack20Chart, rpHbar20Ref, rpHbar20Chart, rpHist20Ref, rpHist20Chart],
+        thresholdDE, threshold20);
+      return () => { [rpBar20Chart,rpStack20Chart,rpHbar20Chart,rpHist20Chart].forEach(r=>{ if(r.current){r.current.destroy();r.current=null;} }); };
+    }, [evaluations, thresholdDE, threshold20]);
 
     if (evaluations.length === 0) return null;
     return e('div', { className:'dashboard-section' },
@@ -3336,6 +3455,20 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
           e('div', { style:{height:240,position:'relative'} }, e('canvas',{ref:trendAreaRef})),
         ),
       ),
+      // ── Hidden canvases for report capture ──────────────────
+      ...[
+        { ref:rpBarDeRef,   id:'rp-bar-de'    },
+        { ref:rpStackDeRef, id:'rp-stack-de'  },
+        { ref:rpHbarDeRef,  id:'rp-hbar-de'   },
+        { ref:rpHistDeRef,  id:'rp-hist-de'   },
+        { ref:rpBar20Ref,   id:'rp-bar-20h'   },
+        { ref:rpStack20Ref, id:'rp-stack-20h' },
+        { ref:rpHbar20Ref,  id:'rp-hbar-20h'  },
+        { ref:rpHist20Ref,  id:'rp-hist-20h'  },
+      ].map(({ref, id}) => e('canvas', {
+        key:id, ref, id, width:700, height:260,
+        style:{ position:'absolute', left:'-9999px', top:'-9999px', width:'700px', height:'260px' },
+      })),
     );
   }
 
