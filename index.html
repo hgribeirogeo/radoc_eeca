@@ -1455,7 +1455,7 @@ function exportCSV(evaluations, thresholdDE, threshold20) {
     const prodNeed = prodNecCSV(approval.has,  T, !isDE);
     const pct = ev.scores.TOTAL_RAW > 0 ? Math.round(ev.scores.TOTAL/ev.scores.TOTAL_RAW*100)+'%' : '—';
     const area = ev.area === AREA_ALL ? '—' : (AREAS.find(a=>a.id===ev.area)||{label:ev.area}).label;
-    const statusLabel = approval.status.replace('REPROVADO','Meta não Atingida').replace('Reprovado','Meta não Atingida');
+    const statusLabel = approval.status.replace(/^APROVADO.*/, 'Acima da Reta').replace(/^REPROVADO.*/, 'Abaixo da Reta').replace('Reprovado','Abaixo da Reta');
     return [ev.name,area,ev.regime,ev.scores.ENS_GRAD,ev.scores.ENS_TOTAL,ev.scores.PROJ_ENS,ev.scores.PRI,ev.scores.PSQ,ev.scores.EXT,ev.scores.ADM,ev.scores.RPT,ev.scores.OTR,ev.scores.TOTAL_RAW,ev.scores.TOTAL,approval.prod,approval.has,pct,statusLabel,hasNeed,prodNeed].join(';');
   });
   const csv = [headers.join(';'), ...rows].join('\n');
@@ -1646,7 +1646,7 @@ function App() {
       const profRows=[...scopeEvs].sort((a,b)=>a.name.localeCompare(b.name)).map(ev=>{
         const ap=getApproval(ev); const isDE=ev.regime!=='20H'; const T=isDE?T_de:T_20; const Tm=1.05*T;
         const area=ev.area===AREA_ALL?'—':(AREAS.find(a=>a.id===ev.area)||{label:ev.area}).label;
-        const status=ap.status.replace('REPROVADO','Meta não Atingida').replace('Reprovado','Meta não Atingida');
+        const status=ap.status.replace(/^APROVADO.*/, 'Acima da Reta').replace(/^REPROVADO.*/, 'Abaixo da Reta');
         const pctV=ev.scores.TOTAL_RAW>0?Math.round(ev.scores.TOTAL/ev.scores.TOTAL_RAW*100)+'%':'—';
         const hasNec = !T ? '—' : isDE
           ? (ap.prod > (16/12)*Tm ? '8h ✓'
@@ -3266,8 +3266,9 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
                   background: isApproved?'var(--green-bg)':isReprovado?'var(--red-bg)':'transparent',
                 }},
                   approval.status
-                    .replace('REPROVADO', 'Meta não Atingida')
-                    .replace('Reprovado', 'Meta não Atingida')
+                    .replace(/^APROVADO.*/, 'Acima da Reta')
+                    .replace(/^REPROVADO.*/, 'Abaixo da Reta')
+                    .replace('Reprovado', 'Abaixo da Reta')
                 ),
                 e('td', { style: hasStyle  }, hasNeededFmt),
                 e('td', { style: prodStyle }, prodNeededFmt),
