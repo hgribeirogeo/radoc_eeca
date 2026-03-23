@@ -1667,6 +1667,8 @@ function _buildChartForReport(ref, chartRef, config) {
 }
 
 function buildReportCharts(evs, regime, refs, thDE, th20) {
+  function _has(ev) { return Math.round((ev.scores.ENS_TOTAL/10)*100)/100; }
+  function _aprov(ev) { return calculateApproval(ev.scores,ev.regime,thDE,th20).status.startsWith('APROVADO'); }
       const [barRef, barChart, stackRef, stackChart, hbarRef2, hbarChart2, histRef2, histChart2] = refs;
       const thr = regime === '20H' ? th20 : thDE;
       const Tm  = 1.05 * thr;
@@ -1674,7 +1676,7 @@ function buildReportCharts(evs, regime, refs, thDE, th20) {
       // Bar — avg prod per area
       const areaData = AREAS.map(a=>a.id).map(id => {
         const a = evs.filter(ev => ev.area === id);
-        return a.length ? Math.round(a.map(getProd).reduce((s,v)=>s+v,0)/a.length) : null;
+        return a.length ? Math.round(a.map(_getProdForReport).reduce((s,v)=>s+v,0)/a.length) : null;
       });
       _buildChartForReport(barRef, barChart, { type:'bar', data:{ labels:AREAS.map(a=>a.label),
         datasets:[
@@ -1943,21 +1945,21 @@ function App() {
         setReportLoading(false); return;
       }
 
-      function getProd(ev) {
+      function _getProdForReport(ev) {
         return Math.round((ev.scores.PROJ_ENS+ev.scores.PRI+ev.scores.PSQ+
           ev.scores.EXT+ev.scores.ADM+ev.scores.RPT+ev.scores.OTR)*100)/100;
       }
-      function getHAS(ev)  { return Math.round((ev.scores.ENS_TOTAL/10)*100)/100; }
+      
       function getApproval(ev) { return calculateApproval(ev.scores, ev.regime, thresholdDE, threshold20); }
-      function isApproved(ev)  { return getApproval(ev).status.startsWith('APROVADO'); }
+      function _aprov(ev)  { return getApproval(ev).status.startsWith('APROVADO'); }
       function pct(n,d)   { return d ? Math.round(n/d*100)+'%' : '—'; }
       function fmtList(arr){ return arr.length ? arr.join(', ') : 'nenhum'; }
 
       const total    = scopeEvs.length;
-      const approved = scopeEvs.filter(isApproved).length;
+      const approved = scopeEvs.filter(ev=>calculateApproval(ev.scores,ev.regime,thDE,th20).status.startsWith("APROVADO")).length;
       const pctA     = Math.round(approved/total*100);
-      const prods    = scopeEvs.map(getProd).sort((a,b)=>a-b);
-      const hasArr   = scopeEvs.map(getHAS);
+      const prods    = scopeEvs.map(_getProdForReport).sort((a,b)=>a-b);
+      const hasArr   = scopeEvs.map(_has);
       const avgProd  = Math.round(prods.reduce((s,v)=>s+v,0)/prods.length);
       const medProd  = prods.length%2===0?(prods[prods.length/2-1]+prods[prods.length/2])/2:prods[Math.floor(prods.length/2)];
       const avgHAS   = Math.round(hasArr.reduce((s,v)=>s+v,0)/hasArr.length*10)/10;
@@ -1966,12 +1968,12 @@ function App() {
 
       const areaStats = AREAS.map(ar=>{
         const evs=scopeEvs.filter(ev=>ev.area===ar.id); if(!evs.length)return null;
-        const ap=evs.filter(isApproved).length;
-        const prd=Math.round(evs.map(getProd).reduce((s,v)=>s+v,0)/evs.length);
-        const has=Math.round(evs.map(getHAS).reduce((s,v)=>s+v,0)/evs.length*10)/10;
+        const ap=evs.filter(ev=>calculateApproval(ev.scores,ev.regime,thDE,th20).status.startsWith("APROVADO")).length;
+        const prd=Math.round(evs.map(_getProdForReport).reduce((s,v)=>s+v,0)/evs.length);
+        const has=Math.round(evs.map(ev=>Math.round((ev.scores.ENS_TOTAL/10)*100)/100).reduce((s,v)=>s+v,0)/evs.length*10)/10;
         return{label:ar.label,color:ar.color||'#1a4b8c',count:evs.length,approved:ap,
                pctA:Math.round(ap/evs.length*100),avgProd:prd,avgHAS:has,
-               maxProd:Math.max(...evs.map(getProd)),minProd:Math.min(...evs.map(getProd))};
+               maxProd:Math.max(...evs.map(_getProdForReport)),minProd:Math.min(...evs.map(_getProdForReport))};
       }).filter(Boolean);
 
       const catData=['ENS_TOTAL','PRI','PSQ','EXT','ADM','RPT','OTR'].map((k,i)=>{
@@ -2009,10 +2011,10 @@ function App() {
 
       const notMet=profRows.filter(p=>!p.ok);
       const best3=[...profRows].sort((a,b)=>b.prod-a.prod).slice(0,3);
-      const aboveAvg=scopeEvs.filter(ev=>getProd(ev)>avgProd);
-      const belowAvg=scopeEvs.filter(ev=>getProd(ev)<avgProd);
-      const belowMin=T_de>0?scopeEvs.filter(ev=>getProd(ev)<(0.67*Tm_de)):[];
-      const onlyEnsin=scopeEvs.filter(ev=>getHAS(ev)>=16&&getProd(ev)<(T_de*0.3||999));
+      const aboveAvg=scopeEvs.filter(ev=>_getProdForReport(ev)>avgProd);
+      const belowAvg=scopeEvs.filter(ev=>_getProdForReport(ev)<avgProd);
+      const belowMin=T_de>0?scopeEvs.filter(ev=>_getProdForReport(ev)<(0.67*Tm_de)):[];
+      const onlyEnsin=scopeEvs.filter(ev=>Math.round((ev.scores.ENS_TOTAL/10)*100)/100>=16&&_getProdForReport(ev)<(T_de*0.3||999));
       const highCapHit=scopeEvs.filter(ev=>ev.scores.TOTAL<ev.scores.TOTAL_RAW*0.85);
       const bestArea=areaStats.length?areaStats.reduce((b,a)=>a.avgProd>b.avgProd?a:b):null;
       const worstArea=areaStats.length>1?areaStats.reduce((b,a)=>a.avgProd<b.avgProd?a:b):null;
@@ -2101,7 +2103,7 @@ ${belowMin.length>0?`<li><strong>Atenção urgente</strong> para ${belowMin.leng
       }).length;
       const areaBelow = areaProfs.length - areaAbove;
       const areaAvgProd = areaProfs.length
-        ? Math.round(areaProfs.map(getProd).reduce((s,v)=>s+v,0)/areaProfs.length)
+        ? Math.round(areaProfs.map(_getProdForReport).reduce((s,v)=>s+v,0)/areaProfs.length)
         : 0;
       const unitAbove = scopeEvs.filter(ev=>getApproval(ev).status.startsWith('APROVADO')).length;
       const unitPct   = Math.round(unitAbove/total*100);
@@ -2119,7 +2121,7 @@ ${reportArea !== AREA_ALL && areaProfs.length > 0 ? `<br><br>Foco em <strong>${s
 
         hbar:`Este gráfico é o <strong>termômetro de gestão</strong> da unidade. Verde ≥ 75% · Laranja ≥ 50% · Vermelho < 50%. ${areaStats.filter(a=>a.pctA<50).length>0?`<strong>Atenção imediata — áreas críticas:</strong> ${fmtList(areaStats.filter(a=>a.pctA<50).map(a=>a.label))}. Menos da metade dos professores atingiu a meta — investigar causas estruturais. `:''} ${areaStats.filter(a=>a.pctA>=75).length>0?`<strong>Áreas com bom desempenho:</strong> ${fmtList(areaStats.filter(a=>a.pctA>=75).map(a=>a.label))} — identificar e replicar as boas práticas dessas áreas.`:''} Use este gráfico para priorizar onde concentrar esforços de apoio e incentivo no próximo ciclo.`,
 
-        hist:`A distribuição mostra quantos professores estão em cada faixa de produção. ${T_de>0?`As barras à esquerda da faixa que contém o Xm (${T_de} pts) representam professores que não atingiram o referencial de produção — ${scopeEvs.filter(ev=>getProd(ev)<T_de).length} de ${total} (${Math.round(scopeEvs.filter(ev=>getProd(ev)<T_de).length/total*100)}%).`:'Defina o limiar Xm para identificar professores abaixo do referencial.'} Uma distribuição concentrada nas faixas mais baixas indica que a unidade como um todo precisa de incentivo sistemático à produção. Distribuição espalhada (alta variância) sugere perfis acadêmicos muito distintos — o gestor pode considerar estratégias diferenciadas por grupo.`
+        hist:`A distribuição mostra quantos professores estão em cada faixa de produção. ${T_de>0?`As barras à esquerda da faixa que contém o Xm (${T_de} pts) representam professores que não atingiram o referencial de produção — ${scopeEvs.filter(ev=>_getProdForReport(ev)<T_de).length} de ${total} (${Math.round(scopeEvs.filter(ev=>_getProdForReport(ev)<T_de).length/total*100)}%).`:'Defina o limiar Xm para identificar professores abaixo do referencial.'} Uma distribuição concentrada nas faixas mais baixas indica que a unidade como um todo precisa de incentivo sistemático à produção. Distribuição espalhada (alta variância) sugere perfis acadêmicos muito distintos — o gestor pode considerar estratégias diferenciadas por grupo.`
       };
 
       const date=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
@@ -3105,17 +3107,15 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
     const has20H_d = evaluations.some(ev => ev.regime === '20H');
 
     // ── helpers ──────────────────────────────────────────────────
-    function getProd(ev) {
+    function _getProdForReport(ev) {
       return Math.round((ev.scores.PROJ_ENS + ev.scores.PRI + ev.scores.PSQ +
         ev.scores.EXT + ev.scores.ADM + ev.scores.RPT + ev.scores.OTR) * 100) / 100;
     }
-    function getHAS(ev) {
-      return Math.round((ev.scores.ENS_TOTAL / 10) * 100) / 100;
-    }
+    
     function getStatus(ev) {
       return calculateApproval(ev.scores, ev.regime, thresholdDE, threshold20).status;
     }
-    function isApproved(ev) { return getStatus(ev).startsWith('APROVADO'); }
+    function _aprov(ev) { return getStatus(ev).startsWith('APROVADO'); }
 
     const areaLabels = useMemo(() => AREAS.map(a => a.label), []);
     const areaIds    = useMemo(() => AREAS.map(a => a.id),    []);
@@ -3123,16 +3123,16 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
 
     // ── KPIs ─────────────────────────────────────────────────────
     const total      = dashEvs.length;
-    const approved   = dashEvs.filter(isApproved).length;
+    const approved   = dashEvs.filter(ev=>calculateApproval(ev.scores,ev.regime,thDE,th20).status.startsWith("APROVADO")).length;
     const notMet     = total - approved;
     const pctAprov   = total ? Math.round(approved / total * 100) : 0;
-    const allProd    = dashEvs.map(getProd);
+    const allProd    = dashEvs.map(_getProdForReport);
     const avgProd    = allProd.length ? Math.round(allProd.reduce((s,v)=>s+v,0)/allProd.length) : 0;
     const medianProd = (() => {
       const s = [...allProd].sort((a,b)=>a-b);
       return s.length ? (s.length%2===0 ? Math.round((s[s.length/2-1]+s[s.length/2])/2) : s[Math.floor(s.length/2)]) : 0;
     })();
-    const allHAS     = dashEvs.map(getHAS);
+    const allHAS     = dashEvs.map(_has);
     const avgHAS     = allHAS.length ? Math.round(allHAS.reduce((s,v)=>s+v,0)/allHAS.length*10)/10 : 0;
     const capHitters = dashEvs.filter(ev => ev.scores.TOTAL < ev.scores.TOTAL_RAW).length;
     const avgCapPct  = (() => {
@@ -3163,7 +3163,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
       const areaData = areaIds.map(id => {
         const evs = dashEvs.filter(ev => ev.area === id);
         if (!evs.length) return null;
-        return Math.round(evs.map(getProd).reduce((s,v)=>s+v,0) / evs.length);
+        return Math.round(evs.map(_getProdForReport).reduce((s,v)=>s+v,0) / evs.length);
       });
       const hasArea = areaData.some(v => v !== null);
       if (!hasArea) { buildChart(barAreaRef, barAreaChart, {
@@ -3255,7 +3255,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
       const data = allAreaIds.map(id => {
         const evs = dashEvs.filter(ev => id === AREA_ALL ? ev.area === AREA_ALL : ev.area === id);
         if (!evs.length) return null;
-        return Math.round(evs.filter(isApproved).length / evs.length * 100);
+        return Math.round(evs.filter(ev=>calculateApproval(ev.scores,ev.regime,thDE,th20).status.startsWith("APROVADO")).length / evs.length * 100);
       });
       const colors = [...areaColors, '#888'].map((c,i) =>
         data[i] === null ? 'transparent' : data[i] >= 75 ? '#2d7a3a' : data[i] >= 50 ? '#b36b1a' : '#b33a3a'
@@ -3301,7 +3301,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
       const binLabels = ['0-100','100-200','200-300','300-400','400-500','500-600','600-800','800-1k','1k+'];
       const counts = Array(bins.length-1).fill(0);
       dashEvs.forEach(ev => {
-        const p = getProd(ev);
+        const p = _getProdForReport(ev);
         for (let i=0; i<bins.length-1; i++) {
           if (p >= bins[i] && p < bins[i+1]) { counts[i]++; break; }
         }
@@ -3452,11 +3452,11 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
 
     if (allPoints.length < 2) return null;
 
-    function getProd(ev) {
+    function _getProdForReport(ev) {
       return Math.round((ev.scores.PROJ_ENS+ev.scores.PRI+ev.scores.PSQ+
         ev.scores.EXT+ev.scores.ADM+ev.scores.RPT+ev.scores.OTR)*100)/100;
     }
-    function isApproved(ev, tDE, t20) {
+    function _aprov(ev, tDE, t20) {
       return calculateApproval(ev.scores, ev.regime, tDE, t20).status.startsWith('APROVADO');
     }
 
@@ -3471,11 +3471,11 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
     // Chart 1: Produção média e mediana por ano
     useEffect(() => {
       const avgData = allPoints.map(p => {
-        const prods = p.evs.map(getProd);
+        const prods = p.evs.map(_getProdForReport);
         return prods.length ? Math.round(prods.reduce((s,v)=>s+v,0)/prods.length) : 0;
       });
       const medData = allPoints.map(p => {
-        const s = [...p.evs.map(getProd)].sort((a,b)=>a-b);
+        const s = [...p.evs.map(_getProdForReport)].sort((a,b)=>a-b);
         return s.length ? (s.length%2===0?(s[s.length/2-1]+s[s.length/2])/2:s[Math.floor(s.length/2)]) : 0;
       });
       buildChart(trendProdRef, trendProdChart, {
@@ -3500,7 +3500,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
     useEffect(() => {
       const aprovData = allPoints.map(p => {
         if (!p.evs.length) return 0;
-        return Math.round(p.evs.filter(ev=>isApproved(ev,p.tDE,p.t20)).length/p.evs.length*100);
+        return Math.round(p.evs.filter(ev=>_aprov(ev,p.tDE,p.t20)).length/p.evs.length*100);
       });
       const colors = aprovData.map(v => v>=75?'#2d7a3a':v>=50?'#b36b1a':'#b33a3a');
       buildChart(trendAprovRef, trendAprovChart, {
@@ -3558,7 +3558,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
         data: allPoints.map(p => {
           const evs = p.evs.filter(ev=>ev.area===ar.id);
           if (!evs.length) return null;
-          return Math.round(evs.map(getProd).reduce((s,v)=>s+v,0)/evs.length);
+          return Math.round(evs.map(_getProdForReport).reduce((s,v)=>s+v,0)/evs.length);
         }),
         borderColor: ar.color, backgroundColor: ar.color+'20',
         borderWidth: 2, pointRadius: 4, tension: 0.3,
@@ -3758,7 +3758,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
               const isDE   = ev.regime !== '20H';
               const T      = isDE ? thresholdDE : threshold20;
               const approval = approvalMap.get(ev.id);
-              const isApproved  = approval.status.startsWith('APROVADO');
+              const _aprov  = approval.status.startsWith('APROVADO');
               const isReprovado = approval.status.startsWith('REPROVADO');
 
               // New columns
@@ -3787,10 +3787,10 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
                 fontSize:12,
                 fontWeight:600,
                 borderLeft:'2px solid #93aad4',
-                background: isApproved ? 'transparent'
+                background: _aprov ? 'transparent'
                   : (hasNeeded !== null && typeof hasNeeded !== 'string' && hasNeeded > approval.has + 0.05)
                     ? '#fff8e8' : 'transparent',
-                color: isApproved ? 'var(--green)'
+                color: _aprov ? 'var(--green)'
                   : (hasNeeded !== null && typeof hasNeeded !== 'string' && hasNeeded > approval.has + 0.05)
                     ? 'var(--orange)' : 'var(--text)',
               };
@@ -3800,10 +3800,10 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
                 fontFamily:"'IBM Plex Mono',monospace",
                 fontSize:12,
                 fontWeight:600,
-                background: isApproved ? 'transparent'
+                background: _aprov ? 'transparent'
                   : (typeof prodNeeded === 'number' && prodNeeded > approval.prod + 0.5)
                     ? '#fff8e8' : 'transparent',
-                color: isApproved ? 'var(--green)'
+                color: _aprov ? 'var(--green)'
                   : (typeof prodNeeded === 'number' && prodNeeded > approval.prod + 0.5)
                     ? 'var(--orange)' : 'var(--text)',
               };
@@ -3837,8 +3837,8 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
                 ),
                 e('td', { style:{
                   fontWeight:600, fontSize:11,
-                  color: isApproved?'var(--green)':isReprovado?'var(--red)':'var(--text-muted)',
-                  background: isApproved?'var(--green-bg)':isReprovado?'var(--red-bg)':'transparent',
+                  color: _aprov?'var(--green)':isReprovado?'var(--red)':'var(--text-muted)',
+                  background: _aprov?'var(--green-bg)':isReprovado?'var(--red-bg)':'transparent',
                 }},
                   approval.status
                     .replace(/^APROVADO.*/, 'Acima da Reta')
