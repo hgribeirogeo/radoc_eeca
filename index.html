@@ -1829,8 +1829,26 @@ function App() {
   // ══════════════════════════════════════════════════════════════
   async function generateReport() {
     setReportLoading(true);
-    await new Promise(r => setTimeout(r, 700));
     try {
+      // ── Render dashboard charts on-demand (temporary visible DOM container) ──
+      async function renderDashCharts(evs, regime, thDE, th20) {
+        const W=800, Hbar=280, Hhbar=220;
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'position:fixed;left:-9999px;top:0;width:'+W+'px;background:#fff;padding:8px';
+        document.body.appendChild(wrap);
+        function mk(w,h,id){ const c=document.createElement('canvas'); c.width=w; c.height=h; c.id=id; wrap.appendChild(c); return c; }
+        const cBar=mk(W,Hbar,'tmp-bar');  const cStack=mk(W,Hbar,'tmp-stk');
+        const cHbar=mk(W,Hhbar,'tmp-hbr'); const cHist=mk(W,Hhbar,'tmp-hst');
+        const refs=[ {current:cBar},{current:null},{current:cStack},{current:null},
+                     {current:cHbar},{current:null},{current:cHist},{current:null} ];
+        buildReportCharts(evs, regime, refs, thDE, th20);
+        await new Promise(r=>setTimeout(r,500));
+        const imgs={ bar:cBar.toDataURL('image/png'), stack:cStack.toDataURL('image/png'),
+                     hbar:cHbar.toDataURL('image/png'), hist:cHist.toDataURL('image/png') };
+        [refs[1],refs[3],refs[5],refs[7]].forEach(r=>{ if(r.current){r.current.destroy();r.current=null;} });
+        document.body.removeChild(wrap);
+        return imgs;
+      }
       const scopeEvs = reportArea === AREA_ALL
         ? evaluations
         : evaluations.filter(ev => ev.area === reportArea);
@@ -1918,6 +1936,11 @@ function App() {
       const worstArea=areaStats.length>1?areaStats.reduce((b,a)=>a.avgProd<b.avgProd?a:b):null;
       const domCat=catData.reduce((b,c)=>c.avg>b.avg?c:b);
       const weakCat=catData.filter(c=>c.key!=='ENS_TOTAL').reduce((b,c)=>c.avg<b.avg?c:b);
+
+      const deOnly  = evaluations.filter(ev=>ev.regime!=='20H');
+      const h20Only = evaluations.filter(ev=>ev.regime==='20H');
+      const rptImgsDE  = deOnly.length  ? await renderDashCharts(deOnly,  'DE',  thresholdDE, threshold20) : null;
+      const rptImgs20  = h20Only.length ? await renderDashCharts(h20Only, '20H', thresholdDE, threshold20) : null;
 
       // Capture charts
       function captureChart(id){
@@ -2137,23 +2160,23 @@ ${scatter20Section}
 <div class="section">
   <div class="section-title">Gráficos do Dashboard — Regime DE / 40H</div>
   <div class="chart-grid">
-    <div class="chart-box"><h4>Produção Média por Área — DE/40H</h4>${imgTag(imgBarAreaDE,'Produção por área DE')}<div class="chart-analysis">${chartTexts.barArea}</div></div>
-    <div class="chart-box"><h4>Composição das Atividades por Área — DE/40H</h4>${imgTag(imgStackedDE,'Composição empilhada DE')}<div class="chart-analysis">${chartTexts.stacked}</div></div>
+    <div class="chart-box"><h4>Produção Média por Área — DE/40H</h4>${imgTag(rptImgsDE&&rptImgsDE.bar,'Produção por área DE')}<div class="chart-analysis">${chartTexts.barArea}</div></div>
+    <div class="chart-box"><h4>Composição das Atividades por Área — DE/40H</h4>${imgTag(rptImgsDE&&rptImgsDE.stack,'Composição empilhada DE')}<div class="chart-analysis">${chartTexts.stacked}</div></div>
   </div>
   <div class="chart-grid">
-    <div class="chart-box"><h4>Taxa Acima da Reta por Área — DE/40H</h4>${imgTag(imgHbarDE,'Taxa aprovação DE')}<div class="chart-analysis">${chartTexts.hbar}</div></div>
-    <div class="chart-box"><h4>Distribuição da Produção — DE/40H</h4>${imgTag(imgHistDE,'Histograma DE')}<div class="chart-analysis">${chartTexts.hist}</div></div>
+    <div class="chart-box"><h4>Taxa Acima da Reta por Área — DE/40H</h4>${imgTag(rptImgsDE&&rptImgsDE.hbar,'Taxa aprovação DE')}<div class="chart-analysis">${chartTexts.hbar}</div></div>
+    <div class="chart-box"><h4>Distribuição da Produção — DE/40H</h4>${imgTag(rptImgsDE&&rptImgsDE.hist,'Histograma DE')}<div class="chart-analysis">${chartTexts.hist}</div></div>
   </div>
 </div>
-${(imgBarArea20||imgStacked20||imgHbar20||imgHist20) ? `<div class="section">
+${rptImgs20 ? `<div class="section">
   <div class="section-title">Gráficos do Dashboard — Regime 20H</div>
   <div class="chart-grid">
-    <div class="chart-box"><h4>Produção Média por Área — 20H</h4>\${imgTag(imgBarArea20,'Produção por área 20H')}</div>
-    <div class="chart-box"><h4>Composição das Atividades por Área — 20H</h4>\${imgTag(imgStacked20,'Composição empilhada 20H')}</div>
+    <div class="chart-box"><h4>Produção Média por Área — 20H</h4>\${imgTag(rptImgs20&&rptImgs20.bar,'Produção por área 20H')}</div>
+    <div class="chart-box"><h4>Composição das Atividades por Área — 20H</h4>\${imgTag(rptImgs20&&rptImgs20.stack,'Composição empilhada 20H')}</div>
   </div>
   <div class="chart-grid">
-    <div class="chart-box"><h4>Taxa Acima da Reta por Área — 20H</h4>\${imgTag(imgHbar20,'Taxa aprovação 20H')}</div>
-    <div class="chart-box"><h4>Distribuição da Produção — 20H</h4>\${imgTag(imgHist20,'Histograma 20H')}</div>
+    <div class="chart-box"><h4>Taxa Acima da Reta por Área — 20H</h4>\${imgTag(rptImgs20&&rptImgs20.hbar,'Taxa aprovação 20H')}</div>
+    <div class="chart-box"><h4>Distribuição da Produção — 20H</h4>\${imgTag(rptImgs20&&rptImgs20.hist,'Histograma 20H')}</div>
   </div>
 </div>` : ''}
 ${heatmapHtml}
@@ -2989,15 +3012,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
     const stackedChart  = useRef(null);
     const hbarChart     = useRef(null);
     const histChart     = useRef(null);
-    // Hidden offscreen canvases — always render DE and 20H independently for report capture
-    const rpBarDeRef    = useRef(null); const rpBarDeChart    = useRef(null);
-    const rpStackDeRef  = useRef(null); const rpStackDeChart  = useRef(null);
-    const rpHbarDeRef   = useRef(null); const rpHbarDeChart   = useRef(null);
-    const rpHistDeRef   = useRef(null); const rpHistDeChart   = useRef(null);
-    const rpBar20Ref    = useRef(null); const rpBar20Chart    = useRef(null);
-    const rpStack20Ref  = useRef(null); const rpStack20Chart  = useRef(null);
-    const rpHbar20Ref   = useRef(null); const rpHbar20Chart   = useRef(null);
-    const rpHist20Ref   = useRef(null); const rpHist20Chart   = useRef(null);
+    // (report charts rendered on-demand in generateReport)
     const [dashRegime, setDashRegime] = useState('all');
 
     // ── dashEvs MUST be declared here — before KPI lines that use it ──
@@ -3318,21 +3333,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
     const deEvs  = evaluations.filter(ev => ev.regime !== '20H');
     const h20Evs = evaluations.filter(ev => ev.regime === '20H');
 
-    useEffect(() => {
-      if (!hasDE_evs) return;
-      buildReportCharts(deEvs, 'DE',
-        [rpBarDeRef, rpBarDeChart, rpStackDeRef, rpStackDeChart, rpHbarDeRef, rpHbarDeChart, rpHistDeRef, rpHistDeChart],
-        thresholdDE, threshold20);
-      return () => { [rpBarDeChart,rpStackDeChart,rpHbarDeChart,rpHistDeChart].forEach(r=>{ if(r.current){r.current.destroy();r.current=null;} }); };
-    }, [evaluations, thresholdDE, threshold20]);
-
-    useEffect(() => {
-      if (!has20H_evs) return;
-      buildReportCharts(h20Evs, '20H',
-        [rpBar20Ref, rpBar20Chart, rpStack20Ref, rpStack20Chart, rpHbar20Ref, rpHbar20Chart, rpHist20Ref, rpHist20Chart],
-        thresholdDE, threshold20);
-      return () => { [rpBar20Chart,rpStack20Chart,rpHbar20Chart,rpHist20Chart].forEach(r=>{ if(r.current){r.current.destroy();r.current=null;} }); };
-    }, [evaluations, thresholdDE, threshold20]);
+    // (no persistent report useEffects)
 
     if (evaluations.length === 0) return null;
     return e('div', { className:'dashboard-section' },
