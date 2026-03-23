@@ -2020,10 +2020,9 @@ function App() {
       const domCat=catData.reduce((b,c)=>c.avg>b.avg?c:b);
       const weakCat=catData.filter(c=>c.key!=='ENS_TOTAL').reduce((b,c)=>c.avg<b.avg?c:b);
 
-      const deOnly  = evaluations.filter(ev=>ev.regime!=='20H');
-      const h20Only = evaluations.filter(ev=>ev.regime==='20H');
-      const rptImgsDE  = deOnly.length  ? await renderDashCharts(deOnly,  'DE',  thresholdDE, threshold20) : null;
-      const rptImgs20  = null; // 20H dashboard charts not rendered in report
+      // Dashboard charts use ALL evaluations (DE + 20H combined)
+      const rptImgsDE  = scopeEvs.length ? await renderDashCharts(scopeEvs, 'all', thresholdDE, threshold20) : null;
+      const rptImgs20  = null;
 
       // Capture charts
       function captureChart(id){
@@ -2114,7 +2113,7 @@ ${belowMin.length>0?`<li><strong>Atenção urgente</strong> para ${belowMin.leng
 ${reportArea !== AREA_ALL && areaProfs.length > 0 ? `<br><br>Foco em <strong>${scopeLabel}</strong>: ${areaAbove} de ${areaProfs.length} professores (${areaPct}%) estão acima da fronteira — ${diffPct > 0 ? `<strong style="color:#2d7a3a">+${diffPct}% acima</strong> da média da unidade (${unitPct}%)` : diffPct < 0 ? `<strong style="color:#b33a3a">${diffPct}% abaixo</strong> da média da unidade (${unitPct}%)` : `<strong style="color:#b36b1a">igual</strong> à média da unidade (${unitPct}%)`}. Produção média da área: ${areaAvgProd} pts${T_de>0?' (unidade: '+avgProd+' pts)':''}.` : `<br><br>No conjunto da unidade: ${unitAbove} de ${total} professores (${unitPct}%) atingiram a meta. Produção média: ${avgProd} pts.`}
 <br><br>Pontos <strong>próximos à fronteira</strong> merecem atenção prioritária — uma pequena variação de carga ou produção pode definir aprovação ou não no próximo ciclo.`,
 
-        barArea:`Cada barra representa a produção média de uma área. A linha tracejada marca o limiar Xm × 1,05 = <strong>${T_de>0?Math.round(Tm_de)+' pts':'não definido'}</strong>, referência da unidade para aprovação. ${bestArea?`<strong>${bestArea.label}</strong> lidera com ${bestArea.avgProd} pts — ${T_de>0&&bestArea.avgProd>=Tm_de?'acima do limiar ✓':'abaixo do limiar ⚠'}.`:''} ${worstArea&&areaStats.length>1?`<strong>${worstArea.label}</strong> apresenta o menor desempenho médio (${worstArea.avgProd} pts). `:''} Barras abaixo da linha indicam que a média da área não atinge o referencial — o gestor deve avaliar se a causa é sobrecarga docente, falta de incentivo à pesquisa ou ausência de projetos financiados.`,
+        barArea:`Cada barra representa a produção média de uma área. A linha tracejada marca o limiar Xm × 1,05 = <strong>${T_de>0?Math.round(Tm_de)+' pts':'não definido'}</strong>, referência da unidade para aprovação. ${T_de>0&&bestArea?bestArea.avgProd>=Tm_de?`<strong>${bestArea.label}</strong> lidera com ${bestArea.avgProd} pts — acima do limiar ✓.`:`<strong>${bestArea.label}</strong> tem a maior média (${bestArea.avgProd} pts), ainda abaixo do limiar ⚠.`:''} ${worstArea&&areaStats.length>1?`<strong>${worstArea.label}</strong> é a área mais crítica com ${worstArea.avgProd} pts.`:''} Barras abaixo da linha indicam que a média da área não atinge o referencial — o gestor deve avaliar se a causa é sobrecarga docente, falta de incentivo à pesquisa ou ausência de projetos financiados.`,
 
         stacked:`A composição das barras revela o perfil acadêmico de cada área. A fatia <strong>azul (Ensino)</strong> predominante pode indicar sobrecarga que limita tempo para pesquisa e extensão. Fatias <strong>roxas (Produção Intelectual)</strong> elevadas sinalizam áreas com boa produção científica. Identifique áreas onde uma categoria domina toda a barra — esses professores podem estar concentrando atividades em um único grupo, o que além de limitar o crescimento pode gerar cortes pelos tetos da Resolução CONSUNI 18/2017.`,
 
@@ -2241,14 +2240,14 @@ tr:nth-child(even){background:#fafaf7}
 </div>
 ${scatter20Section}
 <div class="section">
-  <div class="section-title">Gráficos do Dashboard — Regime DE / 40H</div>
+  <div class="section-title">Gráficos do Dashboard — Toda a Unidade (DE/40H + 20H)</div>
   <div class="chart-grid">
-    <div class="chart-box"><h4>Produção Média por Área — DE/40H</h4>${imgTag(rptImgsDE&&rptImgsDE.bar,'Produção por área DE')}<div class="chart-analysis">${chartTexts.barArea}</div></div>
-    <div class="chart-box"><h4>Composição das Atividades por Área — DE/40H</h4>${imgTag(rptImgsDE&&rptImgsDE.stack,'Composição empilhada DE')}<div class="chart-analysis">${chartTexts.stacked}</div></div>
+    <div class="chart-box"><h4>Produção Média por Área</h4>${imgTag(rptImgsDE&&rptImgsDE.bar,'Produção por área DE')}<div class="chart-analysis">${chartTexts.barArea}</div></div>
+    <div class="chart-box"><h4>Composição das Atividades por Área</h4>${imgTag(rptImgsDE&&rptImgsDE.stack,'Composição empilhada DE')}<div class="chart-analysis">${chartTexts.stacked}</div></div>
   </div>
   <div class="chart-grid">
-    <div class="chart-box"><h4>Taxa Acima da Reta por Área — DE/40H</h4>${imgTag(rptImgsDE&&rptImgsDE.hbar,'Taxa aprovação DE')}<div class="chart-analysis">${chartTexts.hbar}</div></div>
-    <div class="chart-box"><h4>Distribuição da Produção — DE/40H</h4>${imgTag(rptImgsDE&&rptImgsDE.hist,'Histograma DE')}<div class="chart-analysis">${chartTexts.hist}</div></div>
+    <div class="chart-box"><h4>Taxa Acima da Reta por Área</h4>${imgTag(rptImgsDE&&rptImgsDE.hbar,'Taxa aprovação DE')}<div class="chart-analysis">${chartTexts.hbar}</div></div>
+    <div class="chart-box"><h4>Distribuição da Produção</h4>${imgTag(rptImgsDE&&rptImgsDE.hist,'Histograma DE')}<div class="chart-analysis">${chartTexts.hist}</div></div>
   </div>
 </div>
 
