@@ -1218,6 +1218,102 @@ function parseItems(text) {
     });
   }
 
+  // ── Auto-resolution map: Tipo de Produção → código Resolução ──────────────
+  // When "Item da Resolução: -" but production type is unambiguous,
+  // the system can assign the correct code automatically.
+  const AUTO_RESOLVE = {
+    // Livros
+    'Livros e Cap':                           { code:'II-1-7',   pts:40,  note:'Livro c/ corpo editorial (assumido)' },
+    'Livros Publicados - Sem Corpo':          { code:'II-1-8',   pts:10,  note:'Livro s/ corpo editorial' },
+    'Cap':                                    { code:'II-1-9',   pts:10,  note:'Capítulo de livro' },
+    'Trabalho Completo em Anais':             { code:'II-1-6',   pts:10,  note:'Trabalho completo em anais' },
+    'Edi':                                    { code:'II-1-10',  pts:12,  note:'Edição/organização de livro' },
+    'Livro Did':                              { code:'II-1-16',  pts:10,  note:'Livro didático institucional' },
+    'Bolsista Produtividade':                 { code:'II-1-20',  pts:20,  note:'Bolsista Produtividade CNPq (por ano)' },
+    // Bancas
+    'Banca de Disserta':                      { code:'V-2-3.1',  pts:4,   note:'Banca mestrado (assumido UFG)' },
+    'Banca de Tese de Doutorado na UFG':      { code:'V-2-4.1',  pts:6,   note:'Banca doutorado UFG' },
+    'Banca de Tese de Doutorado em outra':    { code:'V-2-4.2',  pts:8,   note:'Banca doutorado outra IFE' },
+    'Banca de Monografia':                    { code:'V-2-8',    pts:3,   note:'Banca monografia/TCC' },
+    'Banca de TCC':                           { code:'V-2-8',    pts:3,   note:'Banca TCC' },
+    // Orientações
+    'Orienta':                                { code:'V-1-5',    pts:15,  note:'Orientação mestrado defendido (assumido)' },
+    // Pareceres técnicos
+    'Projeto/Relatório':                      { code:'II-3-15.4',pts:10,  note:'Projeto/relatório s/ ART (assumido)' },
+    'Parecer T':                              { code:'II-3-15.2',pts:5,   note:'Parecer técnico s/ ART (assumido)' },
+    // Iniciação Científica
+    'Inicia':                                 { code:'V-1-22',   pts:6,   note:'Iniciação Científica' },
+  };
+  // Types that need extra info — log as warning, cannot auto-score
+  const AMBIGUOUS_TYPES = [
+    { pattern:'Artigo',         reason:'necessita Qualis (A=25 pts, B=20, C=15, S/Qualis=10)' },
+    { pattern:'Resumo Expandido',reason:'necessita âmbito (Internacional=8, Nacional=6, Regional=4 pts)' },
+    { pattern:'Resumo',         reason:'necessita âmbito (Internacional=4, Nacional=3, Regional=2 pts)' },
+    { pattern:'Parecer',        reason:'necessita tipo (livro=8, artigo periódico=6, trabalho evento=5/3/1 pts)' },
+    { pattern:'Exposi',         reason:'necessita âmbito e modalidade (individual/coletiva)' },
+    { pattern:'Patente',        reason:'verificar registro INPI (com=20 pts)' },
+  ];
+
+  function tryAutoResolve(tipo, block) {
+    if (!tipo) return null;
+    // Check ambiguous first — these cannot be scored
+    for (const amb of AMBIGUOUS_TYPES) {
+      if (tipo.includes(amb.pattern)) return { ambiguous:true, reason:amb.reason };
+    }
+    // Try auto-resolve
+    for (const [pattern, rule] of Object.entries(AUTO_RESOLVE)) {
+      if (tipo.includes(pattern)) return { ambiguous:false, rule };
+    }
+    return null;
+  }
+
+  // ── Second pass: catch items where "Item da Resolução: -" (no valid code) ──
+  // These are never caught by codeRegex (requires [IVX] first char)
+  // We detect them separately and add them as uncoded warnings
+  const uncodedRegex = /Item\s+da\s+Resolu[çc][ãa]o\s*:\s*[-–—]\s/gi;
+  let uncodedMatch;
+  while ((uncodedMatch = uncodedRegex.exec(text)) !== null) {
+    // Make sure this position wasn't already captured by codeRegex
+    const alreadyCaptured = positions.some(p => Math.abs(p.index - uncodedMatch.index) < 5);
+    if (alreadyCaptured) continue;
+    const blockStart = uncodedMatch.index;
+    const blockEnd   = Math.min(blockStart + 1500, text.length);
+    const block2     = text.substring(blockStart, blockEnd);
+    const titleM  = block2.match(/T[\xedi]tulo:\s*([^\r\n]{3,120})/i);
+    const tipoM   = block2.match(/Tipo\s+de\s+Produ[\xe7c][\xe3a]o:\s*([^\r\n]{3,80})/i);
+    const vehicleM= block2.match(/Ve[\xedi]culo[^:]*:\s*([^\r\n]{3,80})/i);
+    const title3  = titleM   ? titleM[1].trim()   : null;
+    const tipo3   = tipoM    ? tipoM[1].trim()    : null;
+    const vehicle3= vehicleM ? vehicleM[1].trim() : null;
+    const detail3 = [tipo3, title3, vehicle3].filter(Boolean).join(' · ');
+    const resolved = tryAutoResolve(tipo3, block2);
+    if (resolved && !resolved.ambiguous) {
+      // Can auto-score this item
+      warnings.push({
+        type: 'auto_resolvido',
+        msg: `Item resolvido pelo sistema → ${resolved.rule.note} (${resolved.rule.pts} pts)${title3?' | '+title3:''}`,
+        autoCode: resolved.rule.code, autoPts: resolved.rule.pts, autoNote: resolved.rule.note,
+        title: title3, tipo: tipo3,
+      });
+      // Inject a synthetic position so calculateScores can process it
+      positions.push({
+        index: uncodedMatch.index,
+        rawCode: resolved.rule.code,
+        sicadPts: null,
+        ptsExplicitDash: false,
+        _autoResolved: true,
+        _autoNote: resolved.rule.note,
+        _autoTitle: title3,
+      });
+    } else {
+      warnings.push({
+        type: 'sem_codigo',
+        msg: `Item sem código de resolução${resolved ? ' ('+resolved.reason+')' : ''}${detail3 ? ': ' + detail3 : ''}`,
+        title: title3, tipo: tipo3, vehicle: vehicle3,
+      });
+    }
+  }
+
   for (let i = 0; i < positions.length; i++) {
     const blockStart = positions[i].index;
     const blockEnd = i + 1 < positions.length ? positions[i+1].index : Math.min(blockStart + 2000, text.length);
@@ -1324,7 +1420,13 @@ function parseItems(text) {
     // a esses itens. Eles devem ser contabilizados.
     // ─────────────────────────────────────────────────────
 
-    if (!RULES[code]) {
+    if (pos._autoResolved) {
+      item._autoResolved = true;
+      item._autoNote = pos._autoNote;
+      item._autoTitle = pos._autoTitle;
+    }
+
+    if (!RULES[code] && !pos._autoResolved) {
       warnings.push(String(`Código "${code}" (raw: "${pos.rawCode}") não encontrado nas regras`));
       item.unknown = true;
     }
@@ -1607,11 +1709,16 @@ function App() {
         addLog(`  Docente: ${name} (${regime})`, 'ok');
         const { items, warnings } = parseItems(text);
         addLog(`  ${items.length} itens extraídos`, 'ok');
-        const strWarnings = warnings.filter(w => typeof w === 'string');
-        const missingCode = warnings.filter(w => typeof w === 'object' && w.type === 'sem_codigo');
+        const strWarnings  = warnings.filter(w => typeof w === 'string');
+        const missingCode  = warnings.filter(w => typeof w === 'object' && w.type === 'sem_codigo');
+        const autoResolved = warnings.filter(w => typeof w === 'object' && w.type === 'auto_resolvido');
         strWarnings.forEach(w => addLog(`  ⚠ ${w}`, 'warn'));
+        if (autoResolved.length > 0) {
+          addLog(`  ✦ ${autoResolved.length} item(ns) resolvido(s) automaticamente pelo sistema:`, 'ok');
+          autoResolved.forEach(w => addLog(`    ✦ ${w.msg}`, 'ok'));
+        }
         if (missingCode.length > 0) {
-          addLog(`  ⚠ ${missingCode.length} item(ns) sem código de resolução (não computado):`, 'warn');
+          addLog(`  ⚠ ${missingCode.length} item(ns) não computado(s) — requer revisão manual:`, 'warn');
           missingCode.forEach(w => addLog(`    → ${w.msg}`, 'warn'));
         }
         const scores = calculateScores(items);
