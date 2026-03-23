@@ -1951,7 +1951,6 @@ function App() {
       }
       
       function getApproval(ev) { return calculateApproval(ev.scores, ev.regime, thresholdDE, threshold20); }
-      function _aprov(ev)  { return getApproval(ev).status.startsWith('APROVADO'); }
       function pct(n,d)   { return d ? Math.round(n/d*100)+'%' : '—'; }
       function fmtList(arr){ return arr.length ? arr.join(', ') : 'nenhum'; }
 
@@ -1959,7 +1958,7 @@ function App() {
       const approved = scopeEvs.filter(ev=>calculateApproval(ev.scores,ev.regime,thDE,th20).status.startsWith("APROVADO")).length;
       const pctA     = Math.round(approved/total*100);
       const prods    = scopeEvs.map(_getProdForReport).sort((a,b)=>a-b);
-      const hasArr   = scopeEvs.map(_has);
+      const hasArr   = scopeEvs.map(ev=>Math.round((ev.scores.ENS_TOTAL/10)*100)/100);
       const avgProd  = Math.round(prods.reduce((s,v)=>s+v,0)/prods.length);
       const medProd  = prods.length%2===0?(prods[prods.length/2-1]+prods[prods.length/2])/2:prods[Math.floor(prods.length/2)];
       const avgHAS   = Math.round(hasArr.reduce((s,v)=>s+v,0)/hasArr.length*10)/10;
@@ -3115,8 +3114,6 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
     function getStatus(ev) {
       return calculateApproval(ev.scores, ev.regime, thresholdDE, threshold20).status;
     }
-    function _aprov(ev) { return getStatus(ev).startsWith('APROVADO'); }
-
     const areaLabels = useMemo(() => AREAS.map(a => a.label), []);
     const areaIds    = useMemo(() => AREAS.map(a => a.id),    []);
     const areaColors = useMemo(() => AREAS.map(a => a.color), []);
@@ -3132,7 +3129,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
       const s = [...allProd].sort((a,b)=>a-b);
       return s.length ? (s.length%2===0 ? Math.round((s[s.length/2-1]+s[s.length/2])/2) : s[Math.floor(s.length/2)]) : 0;
     })();
-    const allHAS     = dashEvs.map(_has);
+    const allHAS     = dashEvs.map(getHAS);
     const avgHAS     = allHAS.length ? Math.round(allHAS.reduce((s,v)=>s+v,0)/allHAS.length*10)/10 : 0;
     const capHitters = dashEvs.filter(ev => ev.scores.TOTAL < ev.scores.TOTAL_RAW).length;
     const avgCapPct  = (() => {
