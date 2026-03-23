@@ -3129,7 +3129,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
       const s = [...allProd].sort((a,b)=>a-b);
       return s.length ? (s.length%2===0 ? Math.round((s[s.length/2-1]+s[s.length/2])/2) : s[Math.floor(s.length/2)]) : 0;
     })();
-    const allHAS     = dashEvs.map(getHAS);
+    const allHAS     = dashEvs.map(ev => Math.round((ev.scores.ENS_TOTAL / 10) * 100) / 100);
     const avgHAS     = allHAS.length ? Math.round(allHAS.reduce((s,v)=>s+v,0)/allHAS.length*10)/10 : 0;
     const capHitters = dashEvs.filter(ev => ev.scores.TOTAL < ev.scores.TOTAL_RAW).length;
     const avgCapPct  = (() => {
