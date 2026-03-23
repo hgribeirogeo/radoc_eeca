@@ -1829,6 +1829,7 @@ function App() {
   // ══════════════════════════════════════════════════════════════
   async function generateReport() {
     setReportLoading(true);
+    await new Promise(r => setTimeout(r, 700));
     try {
       const scopeEvs = reportArea === AREA_ALL
         ? evaluations
