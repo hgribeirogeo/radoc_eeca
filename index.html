@@ -2023,7 +2023,7 @@ function App() {
       const deOnly  = evaluations.filter(ev=>ev.regime!=='20H');
       const h20Only = evaluations.filter(ev=>ev.regime==='20H');
       const rptImgsDE  = deOnly.length  ? await renderDashCharts(deOnly,  'DE',  thresholdDE, threshold20) : null;
-      const rptImgs20  = h20Only.length ? await renderDashCharts(h20Only, '20H', thresholdDE, threshold20) : null;
+      const rptImgs20  = null; // 20H dashboard charts not rendered in report
 
       // Capture charts
       function captureChart(id){
@@ -2251,17 +2251,7 @@ ${scatter20Section}
     <div class="chart-box"><h4>Distribuição da Produção — DE/40H</h4>${imgTag(rptImgsDE&&rptImgsDE.hist,'Histograma DE')}<div class="chart-analysis">${chartTexts.hist}</div></div>
   </div>
 </div>
-${rptImgs20 ? `<div class="section">
-  <div class="section-title">Gráficos do Dashboard — Regime 20H</div>
-  <div class="chart-grid">
-    <div class="chart-box"><h4>Produção Média por Área — 20H</h4>\${imgTag(rptImgs20&&rptImgs20.bar,'Produção por área 20H')}</div>
-    <div class="chart-box"><h4>Composição das Atividades por Área — 20H</h4>\${imgTag(rptImgs20&&rptImgs20.stack,'Composição empilhada 20H')}</div>
-  </div>
-  <div class="chart-grid">
-    <div class="chart-box"><h4>Taxa Acima da Reta por Área — 20H</h4>\${imgTag(rptImgs20&&rptImgs20.hbar,'Taxa aprovação 20H')}</div>
-    <div class="chart-box"><h4>Distribuição da Produção — 20H</h4>\${imgTag(rptImgs20&&rptImgs20.hist,'Histograma 20H')}</div>
-  </div>
-</div>` : ''}
+
 ${heatmapHtml}
 <!-- BOTTLENECK ANALYSIS -->
 <div class="section">
