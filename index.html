@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sistema SICAD+ da Escola de Engenharia Civil e Ambiental — UFG v1.0</title>
+<title>SICAD Avaliador — UFG</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -2788,7 +2788,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
     // ── Chart 1: Produção média por área (bar + threshold line) ──
     useEffect(() => {
       const areaData = areaIds.map(id => {
-        const evs = evaluations.filter(ev => ev.area === id);
+        const evs = dashEvs.filter(ev => ev.area === id);
         if (!evs.length) return null;
         return Math.round(evs.map(getProd).reduce((s,v)=>s+v,0) / evs.length);
       });
@@ -2837,7 +2837,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
           },
         },
       });
-    }, [evaluations, thresholdDE, threshold20]);
+    }, [dashEvs, thresholdDE, threshold20]);
 
     // ── Chart 2: Composição das atividades por área (stacked bar) ─
     useEffect(() => {
@@ -2848,7 +2848,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
       const datasets = catKeys.map((key, i) => ({
         label: catLabels[i],
         data: areaIds.map(id => {
-          const evs = evaluations.filter(ev => ev.area === id);
+          const evs = dashEvs.filter(ev => ev.area === id);
           if (!evs.length) return 0;
           return Math.round(evs.map(ev=>ev.scores[key]).reduce((s,v)=>s+v,0) / evs.length);
         }),
@@ -2873,14 +2873,14 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
           },
         },
       });
-    }, [evaluations]);
+    }, [dashEvs]);
 
     // ── Chart 3: Taxa de aprovação por área (horizontal bar) ──────
     useEffect(() => {
       const labels   = [...areaLabels, 'Sem área'];
       const allAreaIds = [...areaIds, AREA_ALL];
       const data = allAreaIds.map(id => {
-        const evs = evaluations.filter(ev => id === AREA_ALL ? ev.area === AREA_ALL : ev.area === id);
+        const evs = dashEvs.filter(ev => id === AREA_ALL ? ev.area === AREA_ALL : ev.area === id);
         if (!evs.length) return null;
         return Math.round(evs.filter(isApproved).length / evs.length * 100);
       });
@@ -2919,7 +2919,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
           },
         },
       });
-    }, [evaluations, thresholdDE, threshold20]);
+    }, [dashEvs, thresholdDE, threshold20]);
 
     // ── Chart 4: Histograma de produção ────────────────────────────
     useEffect(() => {
@@ -2927,7 +2927,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
       const bins = [0,100,200,300,400,500,600,800,1000,Infinity];
       const binLabels = ['0-100','100-200','200-300','300-400','400-500','500-600','600-800','800-1k','1k+'];
       const counts = Array(bins.length-1).fill(0);
-      evaluations.forEach(ev => {
+      dashEvs.forEach(ev => {
         const p = getProd(ev);
         for (let i=0; i<bins.length-1; i++) {
           if (p >= bins[i] && p < bins[i+1]) { counts[i]++; break; }
@@ -2966,12 +2966,28 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
           },
         },
       });
-    }, [evaluations, thresholdDE, threshold20]);
+    }, [dashEvs, thresholdDE, threshold20]);
 
     if (evaluations.length === 0) return null;
     return e('div', { className:'dashboard-section' },
       e('h2', null, 'Dashboard da Unidade'),
       e('p', { className:'subtitle' }, 'Indicadores para gestão e distribuição de esforço acadêmico.'),
+
+      // Regime filter
+      e('div', { className:'regime-toggle', style:{ marginBottom:12 } },
+        e('button', {
+          className:'regime-btn' + (dashRegime==='all'?' active':''),
+          onClick: () => setDashRegime('all'),
+        }, 'Todos (' + evaluations.length + ')'),
+        hasDE_d && e('button', {
+          className:'regime-btn' + (dashRegime==='DE'?' active':''),
+          onClick: () => setDashRegime('DE'),
+        }, 'DE/40H (' + evaluations.filter(ev=>ev.regime!=='20H').length + ')'),
+        has20H_d && e('button', {
+          className:'regime-btn' + (dashRegime==='20H'?' active':''),
+          onClick: () => setDashRegime('20H'),
+        }, '20H (' + evaluations.filter(ev=>ev.regime==='20H').length + ')'),
+      ),
 
       // KPI cards
       e('div', { className:'kpi-grid' },
