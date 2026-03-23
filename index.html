@@ -738,6 +738,67 @@ footer {
   overflow: hidden;
 }
 
+
+/* ── Análise Temporal ── */
+.temporal-section {
+  margin: 24px 0 40px 0;
+}
+.temporal-section h2 { font-size: 16px; margin-bottom: 4px; }
+.temporal-section .subtitle { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; }
+.snapshot-upload {
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  padding: 20px 24px;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.snapshot-upload:hover, .snapshot-upload.dragover {
+  border-color: var(--accent);
+  background: var(--accent-light);
+}
+.snapshot-upload input[type="file"] { display: none; }
+.snapshot-upload .upload-text { flex: 1; }
+.snapshot-upload .upload-text h4 { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+.snapshot-upload .upload-text p  { font-size: 12px; color: var(--text-muted); }
+.snapshot-badges {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px;
+}
+.snapshot-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--accent-light); color: var(--accent);
+  border: 1px solid #93aad4; border-radius: 4px;
+  padding: 4px 10px; font-size: 12px; font-weight: 600;
+  font-family: 'IBM Plex Mono', monospace;
+}
+.snapshot-badge button {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted); font-size: 14px; line-height: 1;
+  padding: 0 0 0 4px;
+}
+.snapshot-badge button:hover { color: var(--red); }
+.temporal-chart-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.temporal-chart-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+.temporal-chart-box h3 { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+.temporal-chart-box p  { font-size: 11px; color: var(--text-muted); margin-bottom: 12px; }
+@media (max-width: 800px) { .temporal-chart-grid { grid-template-columns: 1fr; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
 </style>
 </head>
 <body>
@@ -1484,7 +1545,10 @@ function App() {
   const [areaFilter, setAreaFilter] = useState(AREA_ALL);
   const [thresholdDE, setThresholdDE] = useState(parseFloat(localStorage.getItem('sicad_threshold_de') || '0'));
   const [threshold20, setThreshold20] = useState(parseFloat(localStorage.getItem('sicad_threshold_20') || '0'));
-  const fileInputRef   = useRef(null);
+  const fileInputRef     = useRef(null);
+  const snapshotInputRef = useRef(null);
+  const [snapshots, setSnapshots]   = useState([]); // [{year, label, evaluations, thresholdDE, threshold20}]
+  const [snapshotYear, setSnapshotYear] = useState(new Date().getFullYear());
   const [reportArea, setReportArea]       = useState(AREA_ALL);
   const [reportLoading, setReportLoading] = useState(false);
   const areaRefs    = useRef({});
@@ -1585,6 +1649,47 @@ function App() {
   function handleDragOver(evt) { evt.preventDefault(); evt.currentTarget.classList.add('dragover'); }
   function handleDragLeave(evt) { evt.currentTarget.classList.remove('dragover'); }
 
+
+  // ══════════════════════════════════════════════════════════════
+  // SNAPSHOT EXPORT / IMPORT
+  // ══════════════════════════════════════════════════════════════
+  function exportSnapshot() {
+    const snapshot = {
+      version: 1,
+      year: snapshotYear,
+      unit: 'EECA-UFG',
+      thresholdDE,
+      threshold20,
+      generatedAt: new Date().toISOString(),
+      evaluations,
+    };
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `sicad-snapshot-${snapshotYear}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    addLog(`Snapshot ${snapshotYear} exportado`, 'ok');
+  }
+
+  async function loadSnapshots(files) {
+    for (const file of files) {
+      if (!file.name.endsWith('.json')) { addLog(`${file.name}: não é JSON`, 'warn'); continue; }
+      try {
+        const text = await file.text();
+        const snap = JSON.parse(text);
+        if (!snap.year || !snap.evaluations) throw new Error('Formato inválido');
+        setSnapshots(prev => {
+          const filtered = prev.filter(s => s.year !== snap.year);
+          return [...filtered, snap].sort((a,b) => a.year - b.year);
+        });
+        addLog(`Snapshot ${snap.year} carregado (${snap.evaluations.length} professores)`, 'ok');
+      } catch(err) {
+        addLog(`Erro ao carregar ${file.name}: ${err.message}`, 'err');
+      }
+    }
+  }
 
   // ══════════════════════════════════════════════════════════════
   // GERADOR DE RELATÓRIO PDF — versão local (sem API, com gráficos)
@@ -3047,6 +3152,193 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
     );
   }
 
+
+  // ============================================================
+  // ANÁLISE TEMPORAL — gráficos de evolução anual
+  // ============================================================
+  function TemporalChart({ snapshots, evaluations, thresholdDE, threshold20 }) {
+    const trendProdRef  = useRef(null);
+    const trendAprovRef = useRef(null);
+    const trendCatRef   = useRef(null);
+    const trendAreaRef  = useRef(null);
+    const trendProdChart  = useRef(null);
+    const trendAprovChart = useRef(null);
+    const trendCatChart   = useRef(null);
+    const trendAreaChart  = useRef(null);
+
+    // Build timeline: merge snapshots + current year
+    const currentYear = new Date().getFullYear();
+    const allPoints = useMemo(() => {
+      const pts = [...snapshots.map(s => ({
+        year: s.year,
+        evs: s.evaluations,
+        tDE: s.thresholdDE || thresholdDE,
+        t20: s.threshold20 || threshold20,
+      }))];
+      if (evaluations.length > 0) {
+        pts.push({ year: currentYear, evs: evaluations, tDE: thresholdDE, t20: threshold20 });
+      }
+      return pts.sort((a,b) => a.year - b.year);
+    }, [snapshots, evaluations, thresholdDE, threshold20]);
+
+    if (allPoints.length < 2) return null;
+
+    function getProd(ev) {
+      return Math.round((ev.scores.PROJ_ENS+ev.scores.PRI+ev.scores.PSQ+
+        ev.scores.EXT+ev.scores.ADM+ev.scores.RPT+ev.scores.OTR)*100)/100;
+    }
+    function isApproved(ev, tDE, t20) {
+      return calculateApproval(ev.scores, ev.regime, tDE, t20).status.startsWith('APROVADO');
+    }
+
+    const years = allPoints.map(p => p.year);
+
+    function buildChart(ref, chartRef, config) {
+      if (!ref.current) return;
+      if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
+      chartRef.current = new Chart(ref.current, config);
+    }
+
+    // Chart 1: Produção média e mediana por ano
+    useEffect(() => {
+      const avgData = allPoints.map(p => {
+        const prods = p.evs.map(getProd);
+        return prods.length ? Math.round(prods.reduce((s,v)=>s+v,0)/prods.length) : 0;
+      });
+      const medData = allPoints.map(p => {
+        const s = [...p.evs.map(getProd)].sort((a,b)=>a-b);
+        return s.length ? (s.length%2===0?(s[s.length/2-1]+s[s.length/2])/2:s[Math.floor(s.length/2)]) : 0;
+      });
+      buildChart(trendProdRef, trendProdChart, {
+        type: 'line',
+        data: { labels: years, datasets: [
+          { label:'Média', data:avgData, borderColor:'#1a4b8c', backgroundColor:'#1a4b8c20',
+            borderWidth:2.5, pointRadius:5, fill:true, tension:0.3 },
+          { label:'Mediana', data:medData, borderColor:'#7a3b8c', backgroundColor:'transparent',
+            borderWidth:2, pointRadius:4, borderDash:[5,3], tension:0.3 },
+        ]},
+        options: { responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{position:'bottom',labels:{font:{size:11},padding:10}} },
+          scales:{
+            x:{ticks:{font:{size:10}},grid:{color:'#ebe9e4'}},
+            y:{beginAtZero:false, ticks:{font:{size:10},callback:v=>v+' pts'},grid:{color:'#ebe9e4'}},
+          },
+        },
+      });
+    }, [allPoints]);
+
+    // Chart 2: Taxa de aprovação por ano
+    useEffect(() => {
+      const aprovData = allPoints.map(p => {
+        if (!p.evs.length) return 0;
+        return Math.round(p.evs.filter(ev=>isApproved(ev,p.tDE,p.t20)).length/p.evs.length*100);
+      });
+      const colors = aprovData.map(v => v>=75?'#2d7a3a':v>=50?'#b36b1a':'#b33a3a');
+      buildChart(trendAprovRef, trendAprovChart, {
+        type: 'bar',
+        data: { labels: years, datasets: [{
+          label:'% Acima da Reta', data:aprovData,
+          backgroundColor: colors.map(c=>c+'cc'), borderColor: colors,
+          borderWidth:2, borderRadius:4,
+        }]},
+        options: { responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{display:false},
+            tooltip:{callbacks:{label:ctx=>` ${ctx.parsed.y}% acima da reta`}} },
+          scales:{
+            x:{ticks:{font:{size:10}},grid:{display:false}},
+            y:{min:0,max:100,ticks:{font:{size:10},callback:v=>v+'%'},grid:{color:'#ebe9e4'}},
+          },
+        },
+      });
+    }, [allPoints]);
+
+    // Chart 3: Evolução por categoria (linha por categoria)
+    useEffect(() => {
+      const cats = [
+        {key:'PRI', label:'Prod.Intelectual', color:'#7a3b8c'},
+        {key:'PSQ', label:'Pesquisa',         color:'#2d7a3a'},
+        {key:'EXT', label:'Extensão',         color:'#b36b1a'},
+        {key:'ADM', label:'Administrativo',   color:'#8c3b3b'},
+        {key:'ENS_TOTAL', label:'Ensino',     color:'#1a4b8c'},
+      ];
+      const datasets = cats.map(c => ({
+        label: c.label,
+        data: allPoints.map(p => {
+          if (!p.evs.length) return 0;
+          return Math.round(p.evs.map(ev=>ev.scores[c.key]).reduce((s,v)=>s+v,0)/p.evs.length);
+        }),
+        borderColor: c.color, backgroundColor: c.color+'20',
+        borderWidth: 2, pointRadius: 4, tension: 0.3,
+      }));
+      buildChart(trendCatRef, trendCatChart, {
+        type: 'line', data:{ labels:years, datasets },
+        options:{ responsive:true, maintainAspectRatio:false,
+          plugins:{legend:{position:'bottom',labels:{font:{size:10},padding:8,boxWidth:12}}},
+          scales:{
+            x:{ticks:{font:{size:10}},grid:{color:'#ebe9e4'}},
+            y:{beginAtZero:true,ticks:{font:{size:10},callback:v=>v+' pts'},grid:{color:'#ebe9e4'}},
+          },
+        },
+      });
+    }, [allPoints]);
+
+    // Chart 4: Evolução por área (produção média)
+    useEffect(() => {
+      const datasets = AREAS.map(ar => ({
+        label: ar.label,
+        data: allPoints.map(p => {
+          const evs = p.evs.filter(ev=>ev.area===ar.id);
+          if (!evs.length) return null;
+          return Math.round(evs.map(getProd).reduce((s,v)=>s+v,0)/evs.length);
+        }),
+        borderColor: ar.color, backgroundColor: ar.color+'20',
+        borderWidth: 2, pointRadius: 4, tension: 0.3,
+        spanGaps: true,
+      }));
+      buildChart(trendAreaRef, trendAreaChart, {
+        type: 'line', data:{ labels:years, datasets },
+        options:{ responsive:true, maintainAspectRatio:false,
+          plugins:{legend:{position:'bottom',labels:{font:{size:10},padding:8,boxWidth:12}}},
+          scales:{
+            x:{ticks:{font:{size:10}},grid:{color:'#ebe9e4'}},
+            y:{beginAtZero:false,ticks:{font:{size:10},callback:v=>v+' pts'},grid:{color:'#ebe9e4'}},
+          },
+        },
+      });
+    }, [allPoints]);
+
+    return e('div', { className:'temporal-section' },
+      e('h2', null, 'Evolução Temporal da Unidade'),
+      e('p', { className:'subtitle' },
+        `Comparativo entre ${years[0]} e ${years[years.length-1]} · ${allPoints.length} ciclos analisados`
+      ),
+      e('div', { className:'temporal-chart-grid' },
+        e('div', { className:'temporal-chart-box' },
+          e('h3', null, 'Produção Acadêmica — Média e Mediana'),
+          e('p', null, 'Evolução da produção média (sem aulas) ao longo dos anos'),
+          e('div', { style:{height:220,position:'relative'} }, e('canvas',{ref:trendProdRef})),
+        ),
+        e('div', { className:'temporal-chart-box' },
+          e('h3', null, 'Taxa — Acima da Reta'),
+          e('p', null, '% de professores acima da reta por ano · Verde ≥75% · Laranja ≥50%'),
+          e('div', { style:{height:220,position:'relative'} }, e('canvas',{ref:trendAprovRef})),
+        ),
+      ),
+      e('div', { className:'temporal-chart-grid' },
+        e('div', { className:'temporal-chart-box' },
+          e('h3', null, 'Evolução por Categoria de Atividade'),
+          e('p', null, 'Médias anuais por categoria — identifica tendências de crescimento ou queda'),
+          e('div', { style:{height:240,position:'relative'} }, e('canvas',{ref:trendCatRef})),
+        ),
+        e('div', { className:'temporal-chart-box' },
+          e('h3', null, 'Evolução por Área'),
+          e('p', null, 'Produção média anual por área — permite comparar trajetórias'),
+          e('div', { style:{height:240,position:'relative'} }, e('canvas',{ref:trendAreaRef})),
+        ),
+      ),
+    );
+  }
+
   function SummaryTable() {
     if (evaluations.length === 0) return null;
 
@@ -3408,6 +3700,41 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
         })
       ),
 
+      // ── Snapshot controls ───────────────────────────────────
+      e('div', { style:{ display:'flex', gap:8, alignItems:'center', margin:'16px 0 8px 0', flexWrap:'wrap' } },
+        e('span', { style:{ fontSize:13, fontWeight:600, color:'var(--accent)' } }, '📦 Análise Temporal:'),
+        evaluations.length > 0 && e('div', { style:{ display:'flex', alignItems:'center', gap:6 } },
+          e('label', { style:{ fontSize:12, color:'var(--text-secondary)' } }, 'Ano do ciclo:'),
+          e('input', { type:'number', value:snapshotYear, min:2000, max:2100, step:1,
+            style:{ width:80, padding:'4px 8px', border:'1px solid var(--border)',
+                    borderRadius:4, fontFamily:"'IBM Plex Mono',monospace", fontSize:13 },
+            onChange: ev => setSnapshotYear(parseInt(ev.target.value)||new Date().getFullYear()),
+          }),
+          e('button', { className:'btn btn-sm btn-primary', onClick:exportSnapshot },
+            '⬇ Salvar Snapshot ' + snapshotYear),
+        ),
+        e('div', {
+          style:{ display:'inline-flex', alignItems:'center', gap:8, padding:'6px 12px',
+                  border:'1px dashed var(--border)', borderRadius:6, cursor:'pointer',
+                  background:'var(--surface)', fontSize:13 },
+          onClick: () => snapshotInputRef.current?.click(),
+          onDrop: ev => { ev.preventDefault(); loadSnapshots(Array.from(ev.dataTransfer.files)); },
+          onDragOver: handleDragOver, onDragLeave: handleDragLeave,
+        },
+          e('input', { ref:snapshotInputRef, type:'file', accept:'.json', multiple:true, style:{display:'none'},
+            onChange: ev => loadSnapshots(Array.from(ev.target.files)) }),
+          '📂 Carregar snapshots anteriores (.json)',
+        ),
+      ),
+      snapshots.length > 0 && e('div', { className:'snapshot-badges' },
+        snapshots.map(s =>
+          e('span', { key:s.year, className:'snapshot-badge' },
+            s.year + ' (' + s.evaluations.length + ' prof.)',
+            e('button', { onClick: () => setSnapshots(prev => prev.filter(x=>x.year!==s.year)), title:'Remover' }, '×'),
+          )
+        )
+      ),
+
       // Log
       log.length > 0 && e('div', { className:'log' },
         log.map((l,i) => e('div', { key:i, className:l.type },
@@ -3433,6 +3760,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
       evaluations.length > 0 && e(AnalysisChart, { evaluations, thresholdDE, threshold20 }),
       evaluations.length > 0 && e(DashboardCharts, { evaluations, thresholdDE, threshold20, reportArea, setReportArea, reportLoading, generateReport }),
       evaluations.length > 0 && e(HeatmapChart, { evaluations }),
+      (snapshots.length > 0 || evaluations.length > 0) && e(TemporalChart, { snapshots, evaluations, thresholdDE, threshold20 }),
 
       // ── Gerar Relatório — item final após mapa de calor ──────
       evaluations.length > 0 && e('div', { className:'report-bar' },
