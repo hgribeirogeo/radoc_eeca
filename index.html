@@ -3123,7 +3123,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
 
     // ── KPIs ─────────────────────────────────────────────────────
     const total      = dashEvs.length;
-    const approved   = dashEvs.filter(ev=>calculateApproval(ev.scores,ev.regime,thDE,th20).status.startsWith("APROVADO")).length;
+    const approved   = dashEvs.filter(ev=>calculateApproval(ev.scores,ev.regime,thresholdDE,threshold20).status.startsWith("APROVADO")).length;
     const notMet     = total - approved;
     const pctAprov   = total ? Math.round(approved / total * 100) : 0;
     const allProd    = dashEvs.map(_getProdForReport);
@@ -3255,7 +3255,7 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
       const data = allAreaIds.map(id => {
         const evs = dashEvs.filter(ev => id === AREA_ALL ? ev.area === AREA_ALL : ev.area === id);
         if (!evs.length) return null;
-        return Math.round(evs.filter(ev=>calculateApproval(ev.scores,ev.regime,thDE,th20).status.startsWith("APROVADO")).length / evs.length * 100);
+        return Math.round(evs.filter(ev=>calculateApproval(ev.scores,ev.regime,thresholdDE,threshold20).status.startsWith("APROVADO")).length / evs.length * 100);
       });
       const colors = [...areaColors, '#888'].map((c,i) =>
         data[i] === null ? 'transparent' : data[i] >= 75 ? '#2d7a3a' : data[i] >= 50 ? '#b36b1a' : '#b33a3a'
