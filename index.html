@@ -2753,17 +2753,17 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
     const approved   = evaluations.filter(isApproved).length;
     const notMet     = total - approved;
     const pctAprov   = total ? Math.round(approved / total * 100) : 0;
-    const allProd    = evaluations.map(getProd);
+    const allProd    = dashEvs.map(getProd);
     const avgProd    = allProd.length ? Math.round(allProd.reduce((s,v)=>s+v,0)/allProd.length) : 0;
     const medianProd = (() => {
       const s = [...allProd].sort((a,b)=>a-b);
       return s.length ? (s.length%2===0 ? Math.round((s[s.length/2-1]+s[s.length/2])/2) : s[Math.floor(s.length/2)]) : 0;
     })();
-    const allHAS     = evaluations.map(getHAS);
+    const allHAS     = dashEvs.map(getHAS);
     const avgHAS     = allHAS.length ? Math.round(allHAS.reduce((s,v)=>s+v,0)/allHAS.length*10)/10 : 0;
-    const capHitters = evaluations.filter(ev => ev.scores.TOTAL < ev.scores.TOTAL_RAW).length;
+    const capHitters = dashEvs.filter(ev => ev.scores.TOTAL < ev.scores.TOTAL_RAW).length;
     const avgCapPct  = (() => {
-      const vs = evaluations.filter(ev=>ev.scores.TOTAL_RAW>0)
+      const vs = dashEvs.filter(ev=>ev.scores.TOTAL_RAW>0)
         .map(ev=>ev.scores.TOTAL/ev.scores.TOTAL_RAW*100);
       return vs.length ? Math.round(vs.reduce((s,v)=>s+v,0)/vs.length) : 100;
     })();
@@ -2784,6 +2784,14 @@ ${areaStats.length>0?`<div class="section"><div class="section-title">Desempenho
       if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
       chartRef.current = new Chart(ref.current, config);
     }
+
+    // ── dashEvs: declared HERE (before useEffects) to prevent TDZ ──
+    // React evaluates dep arrays when each useEffect hook is called,
+    // so dashEvs must exist at that point in the function body.
+    const dashEvs = dashRegime === 'all' ? evaluations
+      : evaluations.filter(ev => dashRegime === 'DE' ? ev.regime !== '20H' : ev.regime === '20H');
+    const hasDE_d  = evaluations.some(ev => ev.regime !== '20H');
+    const has20H_d = evaluations.some(ev => ev.regime === '20H');
 
     // ── Chart 1: Produção média por área (bar + threshold line) ──
     useEffect(() => {
