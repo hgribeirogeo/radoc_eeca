@@ -1955,7 +1955,7 @@ function App() {
       function fmtList(arr){ return arr.length ? arr.join(', ') : 'nenhum'; }
 
       const total    = scopeEvs.length;
-      const approved = scopeEvs.filter(ev=>calculateApproval(ev.scores,ev.regime,thDE,th20).status.startsWith("APROVADO")).length;
+      const approved = scopeEvs.filter(ev=>calculateApproval(ev.scores,ev.regime,thresholdDE,threshold20).status.startsWith("APROVADO")).length;
       const pctA     = Math.round(approved/total*100);
       const prods    = scopeEvs.map(_getProdForReport).sort((a,b)=>a-b);
       const hasArr   = scopeEvs.map(ev=>Math.round((ev.scores.ENS_TOTAL/10)*100)/100);
@@ -1967,7 +1967,7 @@ function App() {
 
       const areaStats = AREAS.map(ar=>{
         const evs=scopeEvs.filter(ev=>ev.area===ar.id); if(!evs.length)return null;
-        const ap=evs.filter(ev=>calculateApproval(ev.scores,ev.regime,thDE,th20).status.startsWith("APROVADO")).length;
+        const ap=evs.filter(ev=>calculateApproval(ev.scores,ev.regime,thresholdDE,threshold20).status.startsWith("APROVADO")).length;
         const prd=Math.round(evs.map(_getProdForReport).reduce((s,v)=>s+v,0)/evs.length);
         const has=Math.round(evs.map(ev=>Math.round((ev.scores.ENS_TOTAL/10)*100)/100).reduce((s,v)=>s+v,0)/evs.length*10)/10;
         return{label:ar.label,color:ar.color||'#1a4b8c',count:evs.length,approved:ap,
