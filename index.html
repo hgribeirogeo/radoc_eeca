@@ -1252,6 +1252,26 @@ function parseItems(text) {
     const block = text.substring(pos.index, nextIndex);
     const code = normalizeCode(pos.rawCode);
 
+    // ── Detectar item sem código de resolução (professor não preencheu) ──
+    // Quando "Item da Resolução: -" o rawCode será "-" ou similar
+    const rawTrimmed = pos.rawCode.trim();
+    if (rawTrimmed === '-' || rawTrimmed === '–' || rawTrimmed === '—' || rawTrimmed === '') {
+      // Extrair título e tipo de produção para log
+      const titleMatch2 = block.match(/T[íi]tulo:[^\S\r\n]*([^\r\n]{3,120})/i);
+      const tipoMatch2  = block.match(/Tipo[^\S\r\n]+de[^\S\r\n]+Produ[\u00e7c][\u00e3a]o:[^\S\r\n]*([^\r\n]{3,80})/i);
+      const vehicleMatch2 = block.match(/Ve[íi]culo[^:]*:[^\S\r\n]*([^\r\n]{3,80})/i);
+      const title2   = titleMatch2  ? titleMatch2[1].trim()  : null;
+      const tipo2    = tipoMatch2   ? tipoMatch2[1].trim()   : null;
+      const vehicle2 = vehicleMatch2? vehicleMatch2[1].trim(): null;
+      const detail2  = [tipo2, title2, vehicle2].filter(Boolean).join(' · ');
+      warnings.push({
+        type: 'sem_codigo',
+        msg: `Item sem código de resolução (professor não preencheu)${detail2 ? ': ' + detail2 : ''}`,
+        title: title2, tipo: tipo2, vehicle: vehicle2,
+      });
+      continue; // pula — não pode pontuar sem código
+    }
+
     const item = {
       code: code,
       sicadPts: pos.sicadPts,
@@ -1305,7 +1325,7 @@ function parseItems(text) {
     // ─────────────────────────────────────────────────────
 
     if (!RULES[code]) {
-      warnings.push(`Código "${code}" (raw: "${pos.rawCode}") não encontrado nas regras`);
+      warnings.push(String(`Código "${code}" (raw: "${pos.rawCode}") não encontrado nas regras`));
       item.unknown = true;
     }
 
@@ -1587,7 +1607,13 @@ function App() {
         addLog(`  Docente: ${name} (${regime})`, 'ok');
         const { items, warnings } = parseItems(text);
         addLog(`  ${items.length} itens extraídos`, 'ok');
-        warnings.forEach(w => addLog(`  ⚠ ${w}`, 'warn'));
+        const strWarnings = warnings.filter(w => typeof w === 'string');
+        const missingCode = warnings.filter(w => typeof w === 'object' && w.type === 'sem_codigo');
+        strWarnings.forEach(w => addLog(`  ⚠ ${w}`, 'warn'));
+        if (missingCode.length > 0) {
+          addLog(`  ⚠ ${missingCode.length} item(ns) sem código de resolução (não computado):`, 'warn');
+          missingCode.forEach(w => addLog(`    → ${w.msg}`, 'warn'));
+        }
         const scores = calculateScores(items);
         addLog(`  Pontuação total (c/ tetos): ${scores.TOTAL}`, 'ok');
         if (scores.capInfo.length > 0) {
