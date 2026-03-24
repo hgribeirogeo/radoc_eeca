@@ -2165,24 +2165,36 @@ ${reportArea !== AREA_ALL && areaProfs.length > 0 ? `<br><br>Foco em <strong>${s
         })(),
 
         hbar:(() => {
-          const criticas = fullAreaStats.filter(a=>a.pctA<50);
-          const boas     = fullAreaStats.filter(a=>a.pctA>=75);
-          const medio    = fullAreaStats.filter(a=>a.pctA>=50&&a.pctA<75);
-          let txt = 'Percentual de professores acima da reta por área. ';
-          if (criticas.length) txt += `<strong>Situação crítica (menos de 50%):</strong> ${criticas.map(a=>`${a.label} — ${a.pctA}%`).join(', ')}. `;
-          if (medio.length)    txt += `<strong>Situação intermediária (50–74%):</strong> ${medio.map(a=>`${a.label} — ${a.pctA}%`).join(', ')}. `;
-          if (boas.length)     txt += `<strong>Bom desempenho (≥75%):</strong> ${boas.map(a=>`${a.label} — ${a.pctA}%`).join(', ')}. `;
+          const ranked = [...fullAreaStats].sort((a,b)=>b.pctA-a.pctA);
+          const totalAllUnit = evaluations.length;
+          const approvedAll  = evaluations.filter(ev=>calculateApproval(ev.scores,ev.regime,thresholdDE,threshold20).status.startsWith('APROVADO')).length;
+          const unitPctAll   = totalAllUnit>0?Math.round(approvedAll/totalAllUnit*100):0;
+          let txt = `Na unidade, ${unitPctAll}% dos professores estão acima da reta. Por área: `;
+          txt += ranked.map(a=>`<strong>${a.label}</strong>: ${a.pctA}%`).join(' · ') + '. ';
+          const focusStat = reportArea!==AREA_ALL ? fullAreaStats.find(a=>a.label===scopeLabel) : null;
+          if (focusStat) {
+            const diff = focusStat.pctA - unitPctAll;
+            txt += `Em foco — <strong>${scopeLabel}</strong>: ${focusStat.pctA}% dos professores acima da reta`
+              + (diff>0?`, ${diff} p.p. acima da média da unidade.`:diff<0?`, ${Math.abs(diff)} p.p. abaixo da média da unidade.`:`, igual à média da unidade.`);
+          }
           return txt;
         })(),
 
         hist:(() => {
-          const belowXm = T_de>0 ? evaluations.filter(ev=>_getProdForReport(ev)<T_de).length : 0;
-          const pctBelow = total>0 ? Math.round(belowXm/total*100) : 0;
-          const limiarTxt = T_de>0
-            ? `${belowXm} de ${total} professores (${pctBelow}%) têm produção abaixo do Xm (${T_de} pts). `
-            : '';
-          const abaixoBins = T_de>0 ? Math.floor(T_de/100) : -1;
-          return `${limiarTxt}As barras vermelhas representam faixas com produção abaixo do limiar; as verdes, acima. Concentração nas primeiras faixas indica necessidade de incentivo à produção na unidade.`;
+          const totalUnit = evaluations.length;
+          const belowXmUnit = T_de>0 ? evaluations.filter(ev=>_getProdForReport(ev)<T_de).length : 0;
+          const pctBelowUnit = totalUnit>0 ? Math.round(belowXmUnit/totalUnit*100) : 0;
+          let txt = T_de>0
+            ? `Na unidade: ${belowXmUnit} de ${totalUnit} professores (${pctBelowUnit}%) têm produção abaixo do Xm (${T_de} pts). `
+            : 'Defina o Xm para identificar professores abaixo do referencial. ';
+          if (reportArea !== AREA_ALL) {
+            const focusEvs = evaluations.filter(ev=>ev.area===reportArea);
+            const belowFocus = T_de>0 ? focusEvs.filter(ev=>_getProdForReport(ev)<T_de).length : 0;
+            const pctFocus = focusEvs.length>0 ? Math.round(belowFocus/focusEvs.length*100) : 0;
+            if (T_de>0) txt += `Em foco — <strong>${scopeLabel}</strong>: ${belowFocus} de ${focusEvs.length} professores (${pctFocus}%) abaixo do Xm. `;
+          }
+          txt += 'Barras vermelhas = abaixo do limiar; verdes = acima.';
+          return txt;
         })()
       };
 
