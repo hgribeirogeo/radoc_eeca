@@ -2128,72 +2128,84 @@ ${reportArea !== AREA_ALL && areaProfs.length > 0 ? `<br><br>Foco em <strong>${s
 
         barArea:(() => {
           if (!T_de || !fullBestArea) return 'Defina o limiar Xm para ativar a análise comparativa.';
-          const limiar = Math.round(Tm_de);
-          const bestDiff  = fullBestArea.avgProd  - limiar;
-          const worstDiff = fullWorstArea ? fullWorstArea.avgProd - limiar : 0;
-          const bestTxt   = bestDiff >= 0
-            ? `<strong>${fullBestArea.label}</strong> lidera com ${fullBestArea.avgProd} pts — ${bestDiff} pts acima do limiar.`
-            : `<strong>${fullBestArea.label}</strong> lidera com ${fullBestArea.avgProd} pts — ${Math.abs(bestDiff)} pts abaixo do limiar.`;
-          const worstTxt  = fullWorstArea && fullWorstArea.label !== fullBestArea.label
-            ? ` <strong>${fullWorstArea.label}</strong> é a área mais crítica: ${fullWorstArea.avgProd} pts, ${Math.abs(worstDiff)} pts ${worstDiff>=0?'acima':'abaixo'} do limiar.`
-            : '';
-          const abaixoAreas = fullAreaStats.filter(a=>a.avgProd<limiar);
-          const abaixoTxt = abaixoAreas.length > 0
-            ? ` ${abaixoAreas.length === fullAreaStats.length ? 'Todas as áreas' : abaixoAreas.map(a=>a.label).join(', ')} estão abaixo do limiar de ${limiar} pts.`
-            : ' Todas as áreas atingem o referencial.';
-          return `O limiar de referência (Xm × 1,05) é <strong>${limiar} pts</strong>. ${bestTxt}${worstTxt}${abaixoTxt}`;
+          const limiar  = Math.round(Tm_de);
+          const ranked  = [...fullAreaStats].sort((a,b)=>b.avgProd-a.avgProd);
+          const top     = ranked[0];
+          const bottom  = ranked[ranked.length-1];
+          const topDiff = top.avgProd - limiar;
+          const botDiff = bottom.avgProd - limiar;
+          let txt = `O limiar de referência é <strong>${limiar} pts</strong> (Xm × 1,05). `;
+          txt += `<strong>${top.label}</strong> tem a maior produção média: ${top.avgProd} pts`
+               + (topDiff>=0 ? `, ${topDiff} pts acima do limiar.` : `, ${Math.abs(topDiff)} pts abaixo do limiar.`);
+          if (top.label!==bottom.label)
+            txt += ` <strong>${bottom.label}</strong> tem a menor: ${bottom.avgProd} pts`
+                 + (botDiff>=0 ? `, ${Math.abs(botDiff)} pts acima do limiar.` : `, ${Math.abs(botDiff)} pts abaixo do limiar.`);
+          if (reportArea !== AREA_ALL) {
+            const fStat = fullAreaStats.find(a=>a.label===scopeLabel);
+            if (fStat) {
+              const fDiff = fStat.avgProd - limiar;
+              const pos   = ranked.findIndex(a=>a.label===scopeLabel)+1;
+              txt += ` Em foco — <strong>${scopeLabel}</strong>: ${fStat.avgProd} pts de produção média`
+                   + (fDiff>=0 ? `, ${fDiff} pts acima do limiar` : `, ${Math.abs(fDiff)} pts abaixo do limiar`)
+                   + ` (${pos}º entre as ${ranked.length} áreas).`;
+            }
+          }
+          return txt;
         })(),
 
         stacked:(() => {
-          const domCat = ['ENS_TOTAL','PROJ_ENS','PRI','PSQ','EXT','ADM','RPT','OTR'];
-          const domLabels = {ENS_TOTAL:'Ensino',PROJ_ENS:'Proj.Ensino',PRI:'Prod.Intelectual',PSQ:'Pesquisa',EXT:'Extensão',ADM:'Administrativo',RPT:'Representação',OTR:'Outras'};
-          // Find area where a single category dominates (>60% of total)
-          const dominated = fullAreaStats.map(ar=>{
-            const evs=evaluations.filter(ev=>ev.area===ar.id);
-            if(!evs.length)return null;
-            const total_pts=domCat.map(k=>Math.round(evs.map(ev=>ev.scores[k]).reduce((s,v)=>s+v,0)/evs.length)).reduce((s,v)=>s+v,0);
-            const max_cat=domCat.reduce((best,k)=>{
-              const v=Math.round(evs.map(ev=>ev.scores[k]).reduce((s,v2)=>s+v2,0)/evs.length);
-              return v>best.v?{k,v,label:domLabels[k]}:best;
-            },{k:'',v:0,label:''});
-            return total_pts>0&&(max_cat.v/total_pts)>0.6?{area:ar.label,cat:max_cat.label,pct:Math.round(max_cat.v/total_pts*100)}:null;
-          }).filter(Boolean);
-          const domTxt = dominated.length>0
-            ? ` Em ${dominated.map(d=>`<strong>${d.area}</strong> (${d.cat}: ${d.pct}% do total)`).join(', ')}, uma única categoria concentra mais de 60% dos pontos — risco de corte pelos tetos da Resolução.`
-            : '';
-          return `Cada barra mostra de onde vêm os pontos de cada área. Compare as fatias para identificar onde a área investe mais esforço acadêmico.${domTxt}`;
+          const cats  = ['ENS_TOTAL','PROJ_ENS','PRI','PSQ','EXT','ADM','RPT','OTR'];
+          const names = {ENS_TOTAL:'Ensino',PROJ_ENS:'Proj.Ensino',PRI:'Prod.Intelectual',PSQ:'Pesquisa',EXT:'Extensão',ADM:'Administrativo',RPT:'Representação',OTR:'Outras'};
+          function topCat(evsList) {
+            if(!evsList.length) return null;
+            const tot = cats.reduce((s,k)=>s+Math.round(evsList.map(ev=>ev.scores[k]).reduce((a,b)=>a+b,0)/evsList.length),0);
+            const top = cats.map(k=>({k,label:names[k],v:Math.round(evsList.map(ev=>ev.scores[k]).reduce((a,b)=>a+b,0)/evsList.length)})).sort((a,b)=>b.v-a.v)[0];
+            return {label:top.label, v:top.v, pct:tot>0?Math.round(top.v/tot*100):0, tot};
+          }
+          const ut  = topCat(evaluations);
+          let txt = ut ? `Na unidade, a categoria com maior peso é <strong>${ut.label}</strong> (${ut.v} pts em média, ${ut.pct}% da produção total). ` : '';
+          if (reportArea !== AREA_ALL) {
+            const fEvs = evaluations.filter(ev=>ev.area===reportArea);
+            const ft   = topCat(fEvs);
+            if (ft) txt += `Em <strong>${scopeLabel}</strong>: categoria principal é <strong>${ft.label}</strong> (${ft.v} pts, ${ft.pct}% do total da área).`
+              + (ft.pct>60?' Concentração elevada — diversificar atividades reduz o risco de corte pelos tetos da Resolução.':'');
+          }
+          return txt || 'Cada barra mostra a composição da produção por categoria em cada área.';
         })(),
 
         hbar:(() => {
-          const ranked = [...fullAreaStats].sort((a,b)=>b.pctA-a.pctA);
-          const totalAllUnit = evaluations.length;
-          const approvedAll  = evaluations.filter(ev=>calculateApproval(ev.scores,ev.regime,thresholdDE,threshold20).status.startsWith('APROVADO')).length;
-          const unitPctAll   = totalAllUnit>0?Math.round(approvedAll/totalAllUnit*100):0;
-          let txt = `Na unidade, ${unitPctAll}% dos professores estão acima da reta. Por área: `;
+          const totAll  = evaluations.length;
+          const apAll   = evaluations.filter(ev=>calculateApproval(ev.scores,ev.regime,thresholdDE,threshold20).status.startsWith('APROVADO')).length;
+          const pctAll  = totAll>0?Math.round(apAll/totAll*100):0;
+          const ranked  = [...fullAreaStats].sort((a,b)=>b.pctA-a.pctA);
+          let txt = `Na unidade, ${pctAll}% dos professores estão acima da reta. Por área: `;
           txt += ranked.map(a=>`<strong>${a.label}</strong>: ${a.pctA}%`).join(' · ') + '. ';
-          const focusStat = reportArea!==AREA_ALL ? fullAreaStats.find(a=>a.label===scopeLabel) : null;
-          if (focusStat) {
-            const diff = focusStat.pctA - unitPctAll;
-            txt += `Em foco — <strong>${scopeLabel}</strong>: ${focusStat.pctA}% dos professores acima da reta`
-              + (diff>0?`, ${diff} p.p. acima da média da unidade.`:diff<0?`, ${Math.abs(diff)} p.p. abaixo da média da unidade.`:`, igual à média da unidade.`);
+          if (reportArea !== AREA_ALL) {
+            const fStat = fullAreaStats.find(a=>a.label===scopeLabel);
+            if (fStat) {
+              const diff = fStat.pctA - pctAll;
+              txt += `Em foco — <strong>${scopeLabel}</strong>: ${fStat.pctA}% acima da reta`
+                   + (diff>0?`, ${diff} p.p. acima da média da unidade.`:diff<0?`, ${Math.abs(diff)} p.p. abaixo da média da unidade.`:`, igual à média da unidade.`);
+            }
           }
           return txt;
         })(),
 
         hist:(() => {
-          const totalUnit = evaluations.length;
-          const belowXmUnit = T_de>0 ? evaluations.filter(ev=>_getProdForReport(ev)<T_de).length : 0;
-          const pctBelowUnit = totalUnit>0 ? Math.round(belowXmUnit/totalUnit*100) : 0;
+          const totAll   = evaluations.length;
+          const belowAll = T_de>0?evaluations.filter(ev=>_getProdForReport(ev)<T_de).length:0;
+          const pctAll   = totAll>0?Math.round(belowAll/totAll*100):0;
           let txt = T_de>0
-            ? `Na unidade: ${belowXmUnit} de ${totalUnit} professores (${pctBelowUnit}%) têm produção abaixo do Xm (${T_de} pts). `
+            ? `Na unidade: ${belowAll} de ${totAll} professores (${pctAll}%) têm produção abaixo do Xm (${T_de} pts). `
             : 'Defina o Xm para identificar professores abaixo do referencial. ';
           if (reportArea !== AREA_ALL) {
-            const focusEvs = evaluations.filter(ev=>ev.area===reportArea);
-            const belowFocus = T_de>0 ? focusEvs.filter(ev=>_getProdForReport(ev)<T_de).length : 0;
-            const pctFocus = focusEvs.length>0 ? Math.round(belowFocus/focusEvs.length*100) : 0;
-            if (T_de>0) txt += `Em foco — <strong>${scopeLabel}</strong>: ${belowFocus} de ${focusEvs.length} professores (${pctFocus}%) abaixo do Xm. `;
+            const fEvs   = evaluations.filter(ev=>ev.area===reportArea);
+            const fBelow = T_de>0?fEvs.filter(ev=>_getProdForReport(ev)<T_de).length:0;
+            const fPct   = fEvs.length>0?Math.round(fBelow/fEvs.length*100):0;
+            if (T_de>0 && fEvs.length>0)
+              txt += `Em foco — <strong>${scopeLabel}</strong>: ${fBelow} de ${fEvs.length} professores (${fPct}%) abaixo do Xm. `;
           }
-          txt += 'Barras vermelhas = abaixo do limiar; verdes = acima.';
+          txt += 'Barras vermelhas = faixas abaixo do limiar; verdes = acima.';
           return txt;
         })()
       };
