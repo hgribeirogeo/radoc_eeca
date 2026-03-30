@@ -3555,6 +3555,8 @@ ${reviewManualHtml}
     const volRef=useRef(null),catRef=useRef(null),areaRef=useRef(null);
     const prodChart=useRef(null),aprovChart=useRef(null),folgaChart=useRef(null);
     const volChart=useRef(null),catChart=useRef(null),areaChart=useRef(null);
+    const [tempRepArea,setTempRepArea]=useState(AREA_ALL);
+    const [tempRepLoading,setTempRepLoading]=useState(false);
 
     const currentYear=new Date().getFullYear();
     const allPoints=useMemo(()=>{
@@ -3631,7 +3633,7 @@ ${reviewManualHtml}
     const slope=Math.round(linSlope(years,avgSeries));
     const aprovSeries=allPoints.map(p=>{
       if(!p.evs.length)return 0;
-      return Math.round(p.evs.filter(ev=>_aprov2(ev,p.tDE,p.t20)).length/p.evs.length*100);
+      return Math.round(p.evs.filter(ev=>_aprov2(ev,p.tDE,p.t20)).length/p.evs.length*1000)/10;
     });
     const folgaSeries=allPoints.map(p=>{
       const fs=p.evs.map(ev=>_folga(ev,p.tDE,p.t20)).filter(v=>v!==null);
@@ -3688,6 +3690,23 @@ ${reviewManualHtml}
     // Chart 2: % acima da reta
     useEffect(()=>{
       const colors=aprovSeries.map(v=>v>=75?'#2d7a3a':v>=50?'#b36b1a':'#b33a3a');
+      const barLabelPlugin={
+        id:'aprovLabels',
+        afterDatasetsDraw(chart){
+          const {ctx,data,scales:{y}}=chart;
+          ctx.save();
+          ctx.font='bold 11px IBM Plex Mono,monospace';
+          ctx.textAlign='center';
+          ctx.textBaseline='bottom';
+          chart.getDatasetMeta(0).data.forEach((bar,i)=>{
+            const val=data.datasets[0].data[i];
+            if(val===null||val===undefined)return;
+            ctx.fillStyle=val>=75?'#2d7a3a':val>=50?'#b36b1a':'#b33a3a';
+            ctx.fillText(val+'%',bar.x,bar.y-4);
+          });
+          ctx.restore();
+        }
+      };
       buildChart(aprovRef,aprovChart,{
         type:'bar',
         data:{labels:years,datasets:[{label:'% Acima da Reta',data:aprovSeries,
@@ -3695,8 +3714,9 @@ ${reviewManualHtml}
         options:{responsive:true,maintainAspectRatio:false,
           plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.parsed.y}% acima da reta`}}},
           scales:{x:{ticks:{font:{size:10}},grid:{display:false}},
-                  y:{min:0,max:100,ticks:{font:{size:10},callback:v=>v+'%'},grid:{color:'#ebe9e4'}}},
+                  y:{beginAtZero:true,suggestedMax:100,ticks:{font:{size:10},callback:v=>v+'%'},grid:{color:'#ebe9e4'}}},
         },
+        plugins:[barLabelPlugin],
       });
       return()=>{if(aprovChart.current){aprovChart.current.destroy();aprovChart.current=null;}};
     },[allPoints]);
@@ -3890,6 +3910,157 @@ ${reviewManualHtml}
           e('div',{className:'temporal-chart-desc'},
             'Compara as trajetórias médias das áreas da unidade. Ajuda a identificar áreas em expansão, estabilização ou perda de tração ao longo dos ciclos.'),
           e('div',{style:{height:240,position:'relative'}},e('canvas',{ref:areaRef})),
+        ),
+      ),
+
+      // ── Botão relatório temporal ──────────────────────────────
+      e('div',{style:{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',
+                      margin:'20px 0 0 0',padding:'14px 18px',background:'var(--surface)',
+                      border:'1px solid var(--border)',borderTop:'3px solid var(--accent)',borderRadius:8}},
+        e('label',{style:{fontSize:13,fontWeight:600,color:'var(--accent)',whiteSpace:'nowrap'}},
+          '📄 Gerar Relatório Temporal:'),
+        e('select',{
+          value:tempRepArea,
+          onChange:ev=>setTempRepArea(ev.target.value),
+          style:{padding:'7px 12px',border:'1px solid var(--border)',borderRadius:4,
+                 fontFamily:'inherit',fontSize:13,background:'var(--surface-alt)',color:'var(--text)',minWidth:230}
+        },
+          e('option',{value:AREA_ALL},'Toda a Unidade'),
+          ...AREAS.map(ar=>e('option',{key:ar.id,value:ar.id},ar.label))
+        ),
+        e('span',{style:{fontSize:11,color:'var(--text-muted)',flex:1}},
+          'Gera PDF com KPIs, síntese narrativa e os 6 gráficos temporais. Aberto em nova aba para impressão.'),
+        e('button',{
+          onClick:()=>{
+            setTempRepLoading(true);
+            setTimeout(()=>{
+              try{
+                function capChart(ref){try{return ref.current?ref.current.toDataURL('image/png'):null;}catch(e){return null;}}
+                const imgs={
+                  prod:capChart(prodRef),aprov:capChart(aprovRef),folga:capChart(folgaRef),
+                  vol:capChart(volRef),cat:capChart(catRef),area:capChart(areaRef),
+                };
+                // Escopo dos dados
+                const scopePts=tempRepArea===AREA_ALL
+                  ?allPoints
+                  :allPoints.map(p=>({...p,evs:p.evs.filter(ev=>ev.area===tempRepArea)})).filter(p=>p.evs.length>0);
+                if(!scopePts.length){alert('Nenhum dado para a área selecionada.');return;}
+                const scopeLabel=tempRepArea===AREA_ALL?'Toda a Unidade':(AREAS.find(a=>a.id===tempRepArea)||{label:tempRepArea}).label;
+                const scopeYears=scopePts.map(p=>p.year);
+                // Re-calcular KPIs para o escopo
+                function gp(ev){return Math.round((ev.scores.PROJ_ENS+ev.scores.PRI+ev.scores.PSQ+ev.scores.EXT+ev.scores.ADM+ev.scores.RPT+ev.scores.OTR)*100)/100;}
+                function ghv(ev){return Math.round((ev.scores.ENS_TOTAL/10)*100)/100;}
+                function gfv(ev,tDE,t20){
+                  const isDE=ev.regime!=='20H',T=isDE?tDE:t20;if(!T)return null;
+                  const has=ghv(ev),prod=gp(ev);
+                  let req;
+                  if(isDE){const Tm=1.05*T;req=has>=16?0:has<8?Tm*(24-8)/12:Tm*(24-has)/12;}
+                  else{req=has>=10?0:has<8?0.2*T*(14-8):0.2*T*(14-has);}
+                  return Math.round((prod-req)*10)/10;
+                }
+                const sAvg=scopePts.map(p=>{const ps=p.evs.map(gp);return ps.length?Math.round(ps.reduce((s,v)=>s+v,0)/ps.length):0;});
+                const sAprov=scopePts.map(p=>{if(!p.evs.length)return 0;return Math.round(p.evs.filter(ev=>calculateApproval(ev.scores,ev.regime,p.tDE,p.t20).status.startsWith('APROVADO')).length/p.evs.length*1000)/10;});
+                const sFolga=scopePts.map(p=>{const fs=p.evs.map(ev=>gfv(ev,p.tDE,p.t20)).filter(v=>v!==null);return fs.length?Math.round(fs.reduce((s,v)=>s+v,0)/fs.length*10)/10:0;});
+                const sCV=scopePts.map(p=>{const ps=p.evs.map(gp);if(!ps.length)return 0;const m=ps.reduce((s,v)=>s+v,0)/ps.length;if(!m)return 0;const v=Math.sqrt(ps.map(v=>(v-m)**2).reduce((s,v)=>s+v,0)/ps.length);return Math.round(v/m*1000)/10;});
+                const sIQR=scopePts.map(p=>{const s=[...p.evs.map(gp)].sort((a,b)=>a-b),n=s.length;return n>=2?Math.round((s[Math.floor(n*0.75)]-s[Math.floor(n*0.25)])*10)/10:0;});
+                const fAvg=sAvg[0],lAvg=sAvg[sAvg.length-1];
+                const vAcum=lAvg-fAvg;
+                const lPt=scopePts[scopePts.length-1];
+                const lFolgas=lPt.evs.map(ev=>gfv(ev,lPt.tDE,lPt.t20)).filter(v=>v!==null);
+                const avgFolga=lFolgas.length?Math.round(lFolgas.reduce((s,v)=>s+v,0)/lFolgas.length*10)/10:0;
+                const pctRisco=lFolgas.length?Math.round(lFolgas.filter(v=>v<0).length/lFolgas.length*100):0;
+                const fAprov=sAprov[0],lAprov=sAprov[sAprov.length-1];
+                const aDelta=lAprov-fAprov;
+                const lCV=sCV[sCV.length-1],lIQR=sIQR[sIQR.length-1];
+                // Calcular slope para tendência
+                function ls(ys,vs){const n=ys.length;if(n<2)return 0;const xm=ys.reduce((s,v)=>s+v,0)/n,ym=vs.reduce((s,v)=>s+v,0)/n;const num=ys.map((x,i)=>(x-xm)*(vs[i]-ym)).reduce((s,v)=>s+v,0);const den=ys.map(x=>(x-xm)**2).reduce((s,v)=>s+v,0);return den?num/den:0;}
+                const slope=Math.round(ls(scopeYears,sAvg));
+                const synHtml=`A produção média de <strong>${scopeLabel}</strong> variou de <strong>${fAvg} pts</strong> em ${scopeYears[0]} para <strong>${lAvg} pts</strong> em ${scopeYears[scopeYears.length-1]}, com tendência estimada de <strong>${slope>0?'+':''}${slope} pts/ano.</strong> A taxa de docentes acima da reta passou de <strong>${fAprov}%</strong> para <strong>${lAprov}%</strong> (${aDelta>0?'+':''}${aDelta} p.p.). No ciclo mais recente, a folga média em relação à reta foi de <strong>${avgFolga>0?'+':''}${avgFolga} pts</strong>, com <strong>${pctRisco}%</strong> dos docentes em zona de risco. A volatilidade atual da produção foi de <strong>${lCV}%</strong> e o IQR foi de <strong>${lIQR} pts.</strong>`;
+                const kpisHtml=[
+                  {label:'TENDÊNCIA',val:(slope>0?'+':'')+slope,sub:'pts/ano',color:slope>=0?'#1a4b8c':'#b33a3a'},
+                  {label:'VARIAÇÃO ACUMULADA',val:(vAcum>0?'+':'')+vAcum,sub:'produção média',color:vAcum>=0?'#2d7a3a':'#b33a3a'},
+                  {label:'FOLGA ATUAL',val:(avgFolga>0?'+':'')+(Math.round(avgFolga*10)/10),sub:'pts vs reta',color:avgFolga>=0?'#2d7a3a':'#b33a3a'},
+                  {label:'RISCO ATUAL',val:pctRisco+'%',sub:'folga negativa',color:pctRisco<=25?'#2d7a3a':pctRisco<=50?'#b36b1a':'#b33a3a'},
+                ].map(k=>`<div style="background:#fff;border:1px solid #e0ddd5;border-top:3px solid ${k.color};border-radius:8px;padding:14px 16px">
+                  <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#9a968d;margin-bottom:4px">${k.label}</div>
+                  <div style="font-size:28px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:${k.color};line-height:1">${k.val}</div>
+                  <div style="font-size:10px;color:#6b6860;margin-top:4px">${k.sub}</div>
+                </div>`).join('');
+                function imgTag(src,alt){return src?`<img src="${src}" alt="${alt}" style="width:100%;max-height:280px;object-fit:contain;border-radius:4px;border:1px solid #e0ddd5;margin:6px 0">`:'<p style="color:#9a968d;font-style:italic;text-align:center;padding:16px">[Gráfico não disponível — seção temporal deve estar visível antes de gerar o relatório]</p>';}
+                const charts=[
+                  {title:'Produção: média, mediana, média móvel e tendência',desc:'Mostra o comportamento central da produção ao longo do tempo. A média resume o conjunto, a mediana reduz o efeito de extremos, a média móvel suaviza oscilações e a tendência indica a direção estrutural da série.',img:imgs.prod},
+                  {title:'Taxa de docentes acima da reta por ano',desc:'Mostra o percentual de docentes posicionados acima da reta em cada ciclo. O esperado é estabilidade ou crescimento; quedas sucessivas sugerem aumento de pressão sobre a unidade.',img:imgs.aprov},
+                  {title:'Folga média em relação à reta',desc:'Mede quão longe a unidade está da reta mínima, em pontos. Valores positivos indicam margem de segurança; valores negativos mostram que, em média, a unidade entrou em zona de risco.',img:imgs.folga},
+                  {title:'Volatilidade e dispersão',desc:'Resume a heterogeneidade interna da produção. CV alto ou IQR crescente indicam maior desigualdade entre docentes ou maior instabilidade entre ciclos.',img:imgs.vol},
+                  {title:'Evolução por categoria',desc:'Decompõe a trajetória por grandes grupos de atividade. Serve para identificar se ganhos ou perdas vieram de produção intelectual, pesquisa, extensão, administração e demais componentes.',img:imgs.cat},
+                  {title:'Evolução por área',desc:'Compara as trajetórias médias das áreas da unidade. Ajuda a identificar áreas em expansão, estabilização ou perda de tração ao longo dos ciclos.',img:imgs.area},
+                ];
+                const chartsRows=[charts.slice(0,2),charts.slice(2,4),charts.slice(4,6)].map(row=>
+                  `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+                    ${row.map(ch=>`<div style="border:1px solid #e0ddd5;border-radius:6px;padding:14px;page-break-inside:avoid">
+                      <div style="font-size:12px;font-weight:700;color:#1a4b8c;margin-bottom:4px">${ch.title}</div>
+                      <div style="font-size:10px;color:#9a968d;margin-bottom:10px;line-height:1.5">${ch.desc}</div>
+                      ${imgTag(ch.img,ch.title)}
+                    </div>`).join('')}
+                  </div>`
+                ).join('');
+                const dateStr=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
+                const repHtml=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+<title>Relatório Temporal — ${scopeLabel}</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'IBM Plex Sans',Arial,sans-serif;font-size:10.5pt;color:#1a1a18;background:#fff;line-height:1.6}.page{max-width:1100px;margin:0 auto;padding:32px 40px}.cover{border-bottom:3px solid #1a4b8c;padding-bottom:20px;margin-bottom:24px}.cover h1{font-size:20pt;font-weight:700;color:#1a4b8c;margin-bottom:4px}.cover h2{font-size:13pt;font-weight:400;color:#6b6860}.cover h3{font-size:14pt;font-weight:700;color:#1a4b8c;margin:8px 0}.meta{font-size:9.5pt;color:#9a968d;display:flex;gap:20px;flex-wrap:wrap;margin-top:10px;align-items:center}.section{margin:20px 0}.section-title{font-size:12pt;font-weight:700;color:#1a4b8c;border-bottom:1px solid #e0ddd5;padding-bottom:5px;margin-bottom:14px}.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:6px}.synopsis{border-left:4px solid #1a4b8c;background:#f8f9fc;padding:14px 20px;border-radius:0 6px 6px 0;margin-bottom:20px;font-size:11pt;line-height:1.7}.synopsis strong{color:#1a3a6c}.charts-intro{border-left:4px solid #e0ddd5;background:#fafaf7;padding:12px 18px;border-radius:0 6px 6px 0;margin-bottom:16px;font-size:10.5pt;color:#6b6860;line-height:1.6}.footer{margin-top:24px;border-top:1px solid #e0ddd5;padding-top:10px;font-size:8pt;color:#9a968d;display:flex;justify-content:space-between}@media print{.section{page-break-inside:avoid}}</style></head>
+<body><div class="page">
+<div class="cover">
+  <h1>📊 Relatório Temporal RADOC</h1>
+  <h2>Escola de Engenharia Civil e Ambiental — UFG</h2>
+  <h3>${scopeLabel}</h3>
+  <div class="meta">
+    <span>📅 ${dateStr}</span>
+    <span>✅ ${scopePts.length} ciclos analisados</span>
+    <span>📋 Anos: ${scopeYears.join(', ')}</span>
+  </div>
+</div>
+<div class="section">
+  <div class="section-title">Indicadores-Chave</div>
+  <div class="kpi-grid">${kpisHtml}</div>
+</div>
+<div class="section">
+  <div class="section-title">Síntese</div>
+  <div class="synopsis"><p>${synHtml}</p></div>
+</div>
+<div class="section">
+  <div class="section-title">Gráficos temporais</div>
+  <div class="charts-intro">Cada gráfico abaixo responde uma pergunta objetiva de gestão: se a unidade está ganhando tração, se está mais estável ou mais desigual, quão distante está da reta mínima e quais áreas ou categorias explicam as mudanças observadas.</div>
+  ${chartsRows}
+</div>
+<div class="footer">
+  <span>SICAD Avaliador · EECA · UFG</span>
+  <span>Resolução CONSUNI 18/2017 · ${dateStr}</span>
+</div>
+</div>
+<script>document.fonts&&document.fonts.ready?document.fonts.ready.then(()=>setTimeout(()=>window.print(),600)):setTimeout(()=>window.print(),1200);<\/script>
+</body></html>`;
+                const win=window.open('','_blank','width=1200,height=900');
+                if(!win){alert('Pop-up bloqueado! Permita pop-ups para este site e tente novamente.');return;}
+                win.document.write(repHtml);
+                win.document.close();
+              }catch(err){
+                alert('Erro ao gerar relatório temporal: '+err.message);
+              }finally{
+                setTempRepLoading(false);
+              }
+            },50);
+          },
+          disabled:tempRepLoading,
+          style:{background:'var(--accent)',color:'white',border:'none',borderRadius:4,
+                 padding:'8px 18px',fontSize:13,fontWeight:600,cursor:'pointer',
+                 display:'inline-flex',alignItems:'center',gap:6,
+                 opacity:tempRepLoading?0.5:1}
+        },
+          tempRepLoading
+            ? e('span',{style:{display:'inline-block',width:14,height:14,border:'2px solid rgba(255,255,255,0.4)',borderTopColor:'white',borderRadius:'50%',animation:'spin 0.7s linear infinite'}})
+            : '📊',
+          tempRepLoading?' Gerando análise...':' Gerar Relatório'
         ),
       ),
     );
@@ -4329,10 +4500,6 @@ ${reviewManualHtml}
           );
         })
       ),
-
-      evaluations.some(ev => Array.isArray(ev.manualReviewIssues) && ev.manualReviewIssues.length > 0)
-        ? e(AreaReviewSection, { evaluations })
-        : null,
 
       // ── Snapshot controls ───────────────────────────────────
       e('div', { style:{ display:'flex', gap:8, alignItems:'center', margin:'16px 0 8px 0', flexWrap:'wrap' } },
