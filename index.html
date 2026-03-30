@@ -739,6 +739,32 @@ footer {
 }
 
 
+
+/* ── Relatório Temporal — KPIs e Síntese ── */
+.temporal-kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+.temporal-kpi-card{background:var(--surface);border:1px solid var(--border);border-top:3px solid var(--tkpi-color,var(--accent));border-radius:8px;padding:14px 16px;}
+.temporal-kpi-card .tk-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:4px;}
+.temporal-kpi-card .tk-value{font-size:28px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:var(--tkpi-color,var(--accent));line-height:1;}
+.temporal-kpi-card .tk-sub{font-size:10px;color:var(--text-secondary);margin-top:4px;}
+.temporal-synopsis{border-left:4px solid var(--accent);background:#f8f9fc;padding:14px 20px;border-radius:0 6px 6px 0;margin-bottom:24px;font-size:13.5px;line-height:1.7;}
+.temporal-charts-intro{border-left:4px solid var(--border);background:var(--surface-alt);padding:12px 18px;border-radius:0 6px 6px 0;margin-bottom:16px;font-size:13px;color:var(--text-secondary);line-height:1.6;}
+.temporal-chart-title{font-size:12px;font-weight:700;color:var(--accent);margin-bottom:4px;}
+.temporal-chart-desc{font-size:10.5px;color:var(--text-muted);margin-bottom:10px;line-height:1.5;}
+@media(max-width:900px){.temporal-kpi-grid{grid-template-columns:repeat(2,1fr);}}
+/* ── Revisão Manual por Área ── */
+.area-review-section{margin:8px 0 20px 0;}
+.area-review-card{background:var(--surface);border:1px solid var(--border);border-left:4px solid;border-radius:6px;margin-bottom:10px;overflow:hidden;}
+.area-review-card-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;cursor:pointer;user-select:none;}
+.area-review-card-header:hover{background:var(--surface-alt);}
+.area-review-card-header h4{font-size:13px;font-weight:700;}
+.area-review-body{border-top:1px solid var(--border);padding:12px 14px;}
+.docente-issue-block{margin-bottom:14px;padding:10px 12px;background:var(--surface-alt);border:1px solid var(--border);border-radius:5px;}
+.docente-issue-block:last-child{margin-bottom:0;}
+.docente-issue-name{font-size:12.5px;font-weight:700;color:var(--accent);margin-bottom:6px;}
+.docente-issue-count{font-size:11px;color:var(--orange);font-weight:600;margin-bottom:4px;}
+.issue-msg{font-size:11px;color:var(--text-secondary);padding:3px 0;border-bottom:1px solid var(--border);line-height:1.5;}
+.issue-msg:last-child{border-bottom:none;}
+
 /* ── Análise Temporal ── */
 .temporal-section {
   margin: 24px 0 40px 0;
@@ -812,7 +838,7 @@ const AREAS = [
   { id: 'estrut',    label: 'Estruturas',                 color: '#7a7a7a' }, // cinza claro
   { id: 'geotec',    label: 'Geotecnia',                  color: '#7a4f2a' }, // marrom terra
   { id: 'gestao',    label: 'Gestão e Geomática',         color: '#4a6e3a' }, // verde musgo
-  { id: 'hidro',     label: 'Hidráulica e Saneamento',    color: '#2a7a8c' }, // azul água
+  { id: 'hidro',     label: 'Hidráulica e Saneamento',    color: '#00ACC1' }, // azul ciano
 ];
 const AREA_ALL = 'all';
 
@@ -3520,186 +3546,427 @@ ${reviewManualHtml}
   // ============================================================
   // ANÁLISE TEMPORAL — gráficos de evolução anual
   // ============================================================
+  
+  // ============================================================
+  // RELATÓRIO TEMPORAL — igual ao PDF (KPIs + Síntese + 6 gráficos)
+  // ============================================================
   function TemporalChart({ snapshots, evaluations, thresholdDE, threshold20 }) {
-    const trendProdRef  = useRef(null);
-    const trendAprovRef = useRef(null);
-    const trendCatRef   = useRef(null);
-    const trendAreaRef  = useRef(null);
-    const trendProdChart  = useRef(null);
-    const trendAprovChart = useRef(null);
-    const trendCatChart   = useRef(null);
-    const trendAreaChart  = useRef(null);
+    const prodRef=useRef(null),aprovRef=useRef(null),folgaRef=useRef(null);
+    const volRef=useRef(null),catRef=useRef(null),areaRef=useRef(null);
+    const prodChart=useRef(null),aprovChart=useRef(null),folgaChart=useRef(null);
+    const volChart=useRef(null),catChart=useRef(null),areaChart=useRef(null);
 
-    // Build timeline: merge snapshots + current year
-    const currentYear = new Date().getFullYear();
-    const allPoints = useMemo(() => {
-      const pts = [...snapshots.map(s => ({
-        year: s.year,
-        evs: s.evaluations,
-        tDE: s.thresholdDE || thresholdDE,
-        t20: s.threshold20 || threshold20,
+    const currentYear=new Date().getFullYear();
+    const allPoints=useMemo(()=>{
+      const pts=[...snapshots.map(s=>({
+        year:s.year,evs:s.evaluations,
+        tDE:s.thresholdDE||thresholdDE,t20:s.threshold20||threshold20,
       }))];
-      if (evaluations.length > 0) {
-        pts.push({ year: currentYear, evs: evaluations, tDE: thresholdDE, t20: threshold20 });
-      }
-      return pts.sort((a,b) => a.year - b.year);
-    }, [snapshots, evaluations, thresholdDE, threshold20]);
+      if(evaluations.length>0)
+        pts.push({year:currentYear,evs:evaluations,tDE:thresholdDE,t20:threshold20});
+      return pts.sort((a,b)=>a.year-b.year);
+    },[snapshots,evaluations,thresholdDE,threshold20]);
 
-    if (allPoints.length < 2) return null;
+    if(allPoints.length<2)return null;
 
-    function _getProdForReport(ev) {
+    // ── helpers ──────────────────────────────────────────────
+    function _getProd(ev){
       return Math.round((ev.scores.PROJ_ENS+ev.scores.PRI+ev.scores.PSQ+
         ev.scores.EXT+ev.scores.ADM+ev.scores.RPT+ev.scores.OTR)*100)/100;
     }
-    function _aprov(ev, tDE, t20) {
-      return calculateApproval(ev.scores, ev.regime, tDE, t20).status.startsWith('APROVADO');
+    function _hasEv(ev){return Math.round((ev.scores.ENS_TOTAL/10)*100)/100;}
+    function _folga(ev,tDE,t20){
+      const isDE=ev.regime!=='20H';
+      const T=isDE?tDE:t20; if(!T)return null;
+      const has=_hasEv(ev),prod=_getProd(ev);
+      let req;
+      if(isDE){const Tm=1.05*T;req=has>=16?0:has<8?Tm*(24-8)/12:Tm*(24-has)/12;}
+      else{req=has>=10?0:has<8?0.2*T*(14-8):0.2*T*(14-has);}
+      return Math.round((prod-req)*10)/10;
+    }
+    function _aprov2(ev,tDE,t20){
+      return calculateApproval(ev.scores,ev.regime,tDE,t20).status.startsWith('APROVADO');
+    }
+    function linSlope(ys,vs){
+      const n=ys.length;if(n<2)return 0;
+      const xm=ys.reduce((s,v)=>s+v,0)/n,ym=vs.reduce((s,v)=>s+v,0)/n;
+      const num=ys.map((x,i)=>(x-xm)*(vs[i]-ym)).reduce((s,v)=>s+v,0);
+      const den=ys.map(x=>(x-xm)**2).reduce((s,v)=>s+v,0);
+      return den>0?num/den:0;
+    }
+    function linLine(ys,vs){
+      const sl=linSlope(ys,vs),n=ys.length;
+      const xm=ys.reduce((s,v)=>s+v,0)/n,ym=vs.reduce((s,v)=>s+v,0)/n;
+      const b=ym-sl*xm;
+      return ys.map(x=>Math.round((sl*x+b)*10)/10);
+    }
+    function movAvg(data,n=3){
+      return data.map((_,i)=>{
+        const sl=data.slice(Math.max(0,i-n+1),i+1);
+        return Math.round(sl.reduce((s,v)=>s+v,0)/sl.length*10)/10;
+      });
+    }
+    function stdDev(vals){
+      if(!vals.length)return 0;
+      const m=vals.reduce((s,v)=>s+v,0)/vals.length;
+      return Math.sqrt(vals.map(v=>(v-m)**2).reduce((s,v)=>s+v,0)/vals.length);
+    }
+    function iqrFn(vals){
+      const s=[...vals].sort((a,b)=>a-b),n=s.length;
+      return n>=2?Math.round((s[Math.floor(n*0.75)]-s[Math.floor(n*0.25)])*10)/10:0;
     }
 
-    const years = allPoints.map(p => p.year);
+    // ── series ─────────────────────────────────────────────
+    const years=allPoints.map(p=>p.year);
+    const avgSeries=allPoints.map(p=>{
+      const ps=p.evs.map(_getProd);
+      return ps.length?Math.round(ps.reduce((s,v)=>s+v,0)/ps.length):0;
+    });
+    const medSeries=allPoints.map(p=>{
+      const s=[...p.evs.map(_getProd)].sort((a,b)=>a-b);
+      return s.length?(s.length%2===0?(s[s.length/2-1]+s[s.length/2])/2:s[Math.floor(s.length/2)]):0;
+    });
+    const movAvgSeries=movAvg(avgSeries,3);
+    const trendLine=linLine(years,avgSeries);
+    const slope=Math.round(linSlope(years,avgSeries));
+    const aprovSeries=allPoints.map(p=>{
+      if(!p.evs.length)return 0;
+      return Math.round(p.evs.filter(ev=>_aprov2(ev,p.tDE,p.t20)).length/p.evs.length*100);
+    });
+    const folgaSeries=allPoints.map(p=>{
+      const fs=p.evs.map(ev=>_folga(ev,p.tDE,p.t20)).filter(v=>v!==null);
+      return fs.length?Math.round(fs.reduce((s,v)=>s+v,0)/fs.length*10)/10:0;
+    });
+    const cvSeries=allPoints.map(p=>{
+      const ps=p.evs.map(_getProd);if(!ps.length)return 0;
+      const m=ps.reduce((s,v)=>s+v,0)/ps.length;
+      return m>0?Math.round(stdDev(ps)/m*1000)/10:0;
+    });
+    const iqrSeries=allPoints.map(p=>iqrFn(p.evs.map(_getProd)));
 
-    function buildChart(ref, chartRef, config) {
-      if (!ref.current) return;
-      if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
-      chartRef.current = new Chart(ref.current, config);
+    // ── KPIs ────────────────────────────────────────────────
+    const firstAvg=avgSeries[0],lastAvg=avgSeries[avgSeries.length-1];
+    const varAcum=lastAvg-firstAvg;
+    const lastPt=allPoints[allPoints.length-1];
+    const lastFolgas=lastPt.evs.map(ev=>_folga(ev,lastPt.tDE,lastPt.t20)).filter(v=>v!==null);
+    const avgFolga=lastFolgas.length?Math.round(lastFolgas.reduce((s,v)=>s+v,0)/lastFolgas.length*10)/10:0;
+    const pctRisco=lastFolgas.length?Math.round(lastFolgas.filter(v=>v<0).length/lastFolgas.length*100):0;
+    const firstAprov=aprovSeries[0],lastAprov=aprovSeries[aprovSeries.length-1];
+    const aprovDelta=lastAprov-firstAprov;
+    const lastCV=cvSeries[cvSeries.length-1],lastIQR=iqrSeries[iqrSeries.length-1];
+
+    // ── chart builder ───────────────────────────────────────
+    function buildChart(ref,chartRef,config){
+      if(!ref.current)return;
+      if(chartRef.current){chartRef.current.destroy();chartRef.current=null;}
+      chartRef.current=new Chart(ref.current,config);
     }
 
-    // Chart 1: Produção média e mediana por ano
-    useEffect(() => {
-      const avgData = allPoints.map(p => {
-        const prods = p.evs.map(_getProdForReport);
-        return prods.length ? Math.round(prods.reduce((s,v)=>s+v,0)/prods.length) : 0;
-      });
-      const medData = allPoints.map(p => {
-        const s = [...p.evs.map(_getProdForReport)].sort((a,b)=>a-b);
-        return s.length ? (s.length%2===0?(s[s.length/2-1]+s[s.length/2])/2:s[Math.floor(s.length/2)]) : 0;
-      });
-      buildChart(trendProdRef, trendProdChart, {
-        type: 'line',
-        data: { labels: years, datasets: [
-          { label:'Média', data:avgData, borderColor:'#1a4b8c', backgroundColor:'#1a4b8c20',
-            borderWidth:2.5, pointRadius:5, fill:true, tension:0.3 },
-          { label:'Mediana', data:medData, borderColor:'#7a3b8c', backgroundColor:'transparent',
-            borderWidth:2, pointRadius:4, borderDash:[5,3], tension:0.3 },
+    // Chart 1: média/mediana/móvel/tendência
+    useEffect(()=>{
+      buildChart(prodRef,prodChart,{
+        type:'line',
+        data:{labels:years,datasets:[
+          {label:'Média',data:avgSeries,borderColor:'#1a4b8c',backgroundColor:'#1a4b8c18',
+           borderWidth:2.5,pointRadius:5,fill:true,tension:0.25},
+          {label:'Mediana',data:medSeries,borderColor:'#7a3b8c',backgroundColor:'transparent',
+           borderWidth:2,pointRadius:4,borderDash:[5,3],tension:0.25},
+          {label:'Média móvel (3 anos)',data:movAvgSeries,borderColor:'#2d7a3a',
+           backgroundColor:'transparent',borderWidth:1.5,pointRadius:3,borderDash:[3,2],tension:0.3},
+          {label:'Tendência linear',data:trendLine,borderColor:'#b36b1a',
+           backgroundColor:'transparent',borderWidth:2,pointRadius:0,borderDash:[8,4],tension:0},
         ]},
-        options: { responsive:true, maintainAspectRatio:false,
-          plugins:{ legend:{position:'bottom',labels:{font:{size:11},padding:10}} },
-          scales:{
-            x:{ticks:{font:{size:10}},grid:{color:'#ebe9e4'}},
-            y:{beginAtZero:false, ticks:{font:{size:10},callback:v=>v+' pts'},grid:{color:'#ebe9e4'}},
-          },
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{position:'bottom',labels:{font:{size:10},padding:8,boxWidth:20,usePointStyle:true}}},
+          scales:{x:{ticks:{font:{size:10}},grid:{color:'#ebe9e4'}},
+                  y:{beginAtZero:false,ticks:{font:{size:10},callback:v=>v+' pts'},grid:{color:'#ebe9e4'}}},
         },
       });
-    }, [allPoints]);
+      return()=>{if(prodChart.current){prodChart.current.destroy();prodChart.current=null;}};
+    },[allPoints]);
 
-    // Chart 2: Taxa de aprovação por ano
-    useEffect(() => {
-      const aprovData = allPoints.map(p => {
-        if (!p.evs.length) return 0;
-        return Math.round(p.evs.filter(ev=>_aprov(ev,p.tDE,p.t20)).length/p.evs.length*100);
+    // Chart 2: % acima da reta
+    useEffect(()=>{
+      const colors=aprovSeries.map(v=>v>=75?'#2d7a3a':v>=50?'#b36b1a':'#b33a3a');
+      buildChart(aprovRef,aprovChart,{
+        type:'bar',
+        data:{labels:years,datasets:[{label:'% Acima da Reta',data:aprovSeries,
+          backgroundColor:colors.map(c=>c+'bb'),borderColor:colors,borderWidth:2,borderRadius:4}]},
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.parsed.y}% acima da reta`}}},
+          scales:{x:{ticks:{font:{size:10}},grid:{display:false}},
+                  y:{min:0,max:100,ticks:{font:{size:10},callback:v=>v+'%'},grid:{color:'#ebe9e4'}}},
+        },
       });
-      const colors = aprovData.map(v => v>=75?'#2d7a3a':v>=50?'#b36b1a':'#b33a3a');
-      buildChart(trendAprovRef, trendAprovChart, {
-        type: 'bar',
-        data: { labels: years, datasets: [{
-          label:'% Acima da Reta', data:aprovData,
-          backgroundColor: colors.map(c=>c+'cc'), borderColor: colors,
-          borderWidth:2, borderRadius:4,
-        }]},
-        options: { responsive:true, maintainAspectRatio:false,
-          plugins:{ legend:{display:false},
-            tooltip:{callbacks:{label:ctx=>` ${ctx.parsed.y}% acima da reta`}} },
+      return()=>{if(aprovChart.current){aprovChart.current.destroy();aprovChart.current=null;}};
+    },[allPoints]);
+
+    // Chart 3: folga média vs reta
+    useEffect(()=>{
+      const colors=folgaSeries.map(v=>v>=0?'#2d7a3acc':'#b33a3acc');
+      const bc=folgaSeries.map(v=>v>=0?'#2d7a3a':'#b33a3a');
+      buildChart(folgaRef,folgaChart,{
+        type:'bar',
+        data:{labels:years,datasets:[
+          {label:'Folga média vs reta',data:folgaSeries,
+           backgroundColor:colors,borderColor:bc,borderWidth:2,borderRadius:3},
+          {label:'Linha de risco',data:years.map(()=>0),type:'line',
+           borderColor:'#b33a3a',borderWidth:1.5,borderDash:[6,3],pointRadius:0,fill:false},
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{position:'bottom',labels:{font:{size:10},padding:8}}},
+          scales:{x:{ticks:{font:{size:10}},grid:{display:false}},
+                  y:{ticks:{font:{size:10},callback:v=>v+' pts'},grid:{color:'#ebe9e4'}}},
+        },
+      });
+      return()=>{if(folgaChart.current){folgaChart.current.destroy();folgaChart.current=null;}};
+    },[allPoints]);
+
+    // Chart 4: volatilidade (CV% bar + IQR line, eixo duplo)
+    useEffect(()=>{
+      buildChart(volRef,volChart,{
+        type:'bar',
+        data:{labels:years,datasets:[
+          {label:'CV da produção (%)',data:cvSeries,yAxisID:'y',
+           backgroundColor:'#7a3b8ccc',borderColor:'#7a3b8c',borderWidth:2,borderRadius:3},
+          {label:'IQR da produção',data:iqrSeries,yAxisID:'y2',type:'line',
+           borderColor:'#b36b1a',backgroundColor:'transparent',
+           borderWidth:2.5,pointRadius:5,pointStyle:'circle',tension:0.3},
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{position:'bottom',labels:{font:{size:10},padding:8,boxWidth:14}}},
           scales:{
             x:{ticks:{font:{size:10}},grid:{display:false}},
-            y:{min:0,max:100,ticks:{font:{size:10},callback:v=>v+'%'},grid:{color:'#ebe9e4'}},
+            y:{position:'left',beginAtZero:true,ticks:{font:{size:10},callback:v=>v+'%'},
+               grid:{color:'#ebe9e4'},title:{display:true,text:'CV (%)',font:{size:9},color:'#7a3b8c'}},
+            y2:{position:'right',beginAtZero:true,grid:{drawOnChartArea:false},
+               ticks:{font:{size:10},callback:v=>v+' pts'},
+               title:{display:true,text:'IQR (pts)',font:{size:9},color:'#b36b1a'}},
           },
         },
       });
-    }, [allPoints]);
+      return()=>{if(volChart.current){volChart.current.destroy();volChart.current=null;}};
+    },[allPoints]);
 
-    // Chart 3: Evolução por categoria (linha por categoria)
-    useEffect(() => {
-      const cats = [
-        {key:'PRI', label:'Prod.Intelectual', color:'#7a3b8c'},
-        {key:'PSQ', label:'Pesquisa',         color:'#2d7a3a'},
-        {key:'EXT', label:'Extensão',         color:'#b36b1a'},
-        {key:'ADM', label:'Administrativo',   color:'#8c3b3b'},
-        {key:'ENS_TOTAL', label:'Ensino',     color:'#1a4b8c'},
+    // Chart 5: por categoria
+    useEffect(()=>{
+      const cats=[
+        {key:'PRI',label:'Prod.Intelectual',color:'#7a3b8c'},
+        {key:'PSQ',label:'Pesquisa',color:'#2d7a3a'},
+        {key:'EXT',label:'Extensão',color:'#b36b1a'},
+        {key:'ADM',label:'Administrativo',color:'#8c3b3b'},
+        {key:'ENS_TOTAL',label:'Ensino',color:'#1a4b8c'},
       ];
-      const datasets = cats.map(c => ({
-        label: c.label,
-        data: allPoints.map(p => {
-          if (!p.evs.length) return 0;
-          return Math.round(p.evs.map(ev=>ev.scores[c.key]).reduce((s,v)=>s+v,0)/p.evs.length);
-        }),
-        borderColor: c.color, backgroundColor: c.color+'20',
-        borderWidth: 2, pointRadius: 4, tension: 0.3,
-      }));
-      buildChart(trendCatRef, trendCatChart, {
-        type: 'line', data:{ labels:years, datasets },
-        options:{ responsive:true, maintainAspectRatio:false,
+      buildChart(catRef,catChart,{
+        type:'line',
+        data:{labels:years,datasets:cats.map(c=>({
+          label:c.label,
+          data:allPoints.map(p=>p.evs.length?Math.round(p.evs.map(ev=>ev.scores[c.key]).reduce((s,v)=>s+v,0)/p.evs.length):0),
+          borderColor:c.color,backgroundColor:c.color+'20',borderWidth:2,pointRadius:4,tension:0.3,
+        }))},
+        options:{responsive:true,maintainAspectRatio:false,
           plugins:{legend:{position:'bottom',labels:{font:{size:10},padding:8,boxWidth:12}}},
-          scales:{
-            x:{ticks:{font:{size:10}},grid:{color:'#ebe9e4'}},
-            y:{beginAtZero:true,ticks:{font:{size:10},callback:v=>v+' pts'},grid:{color:'#ebe9e4'}},
-          },
+          scales:{x:{ticks:{font:{size:10}},grid:{color:'#ebe9e4'}},
+                  y:{beginAtZero:true,ticks:{font:{size:10},callback:v=>v+' pts'},grid:{color:'#ebe9e4'}}},
         },
       });
-    }, [allPoints]);
+      return()=>{if(catChart.current){catChart.current.destroy();catChart.current=null;}};
+    },[allPoints]);
 
-    // Chart 4: Evolução por área (produção média)
-    useEffect(() => {
-      const datasets = AREAS.map(ar => ({
-        label: ar.label,
-        data: allPoints.map(p => {
-          const evs = p.evs.filter(ev=>ev.area===ar.id);
-          if (!evs.length) return null;
-          return Math.round(evs.map(_getProdForReport).reduce((s,v)=>s+v,0)/evs.length);
-        }),
-        borderColor: ar.color, backgroundColor: ar.color+'20',
-        borderWidth: 2, pointRadius: 4, tension: 0.3,
-        spanGaps: true,
-      }));
-      buildChart(trendAreaRef, trendAreaChart, {
-        type: 'line', data:{ labels:years, datasets },
-        options:{ responsive:true, maintainAspectRatio:false,
+    // Chart 6: por área
+    useEffect(()=>{
+      function gp(ev){return Math.round((ev.scores.PROJ_ENS+ev.scores.PRI+ev.scores.PSQ+ev.scores.EXT+ev.scores.ADM+ev.scores.RPT+ev.scores.OTR)*100)/100;}
+      buildChart(areaRef,areaChart,{
+        type:'line',
+        data:{labels:years,datasets:AREAS.map(ar=>({
+          label:ar.label,
+          data:allPoints.map(p=>{const evs=p.evs.filter(ev=>ev.area===ar.id);return evs.length?Math.round(evs.map(gp).reduce((s,v)=>s+v,0)/evs.length):null;}),
+          borderColor:ar.color,backgroundColor:ar.color+'20',
+          borderWidth:2,pointRadius:4,tension:0.3,spanGaps:true,
+        }))},
+        options:{responsive:true,maintainAspectRatio:false,
           plugins:{legend:{position:'bottom',labels:{font:{size:10},padding:8,boxWidth:12}}},
-          scales:{
-            x:{ticks:{font:{size:10}},grid:{color:'#ebe9e4'}},
-            y:{beginAtZero:false,ticks:{font:{size:10},callback:v=>v+' pts'},grid:{color:'#ebe9e4'}},
-          },
+          scales:{x:{ticks:{font:{size:10}},grid:{color:'#ebe9e4'}},
+                  y:{beginAtZero:false,ticks:{font:{size:10},callback:v=>v+' pts'},grid:{color:'#ebe9e4'}}},
         },
       });
-    }, [allPoints]);
+      return()=>{if(areaChart.current){areaChart.current.destroy();areaChart.current=null;}};
+    },[allPoints]);
 
-    return e('div', { className:'temporal-section' },
-      e('h2', null, 'Evolução Temporal da Unidade'),
-      e('p', { className:'subtitle' },
-        `Comparativo entre ${years[0]} e ${years[years.length-1]} · ${allPoints.length} ciclos analisados`
+    // ── Síntese ─────────────────────────────────────────────
+    const synopsisHtml=
+      `A produção média da unidade variou de <strong>${firstAvg} pts</strong> em ${years[0]} para `+
+      `<strong>${lastAvg} pts</strong> em ${years[years.length-1]}, com tendência estimada de `+
+      `<strong>${slope>0?'+':''}${slope} pts/ano.</strong> `+
+      `A taxa de docentes acima da reta passou de <strong>${firstAprov}%</strong> para `+
+      `<strong>${lastAprov}%</strong> (${aprovDelta>0?'+':''}${aprovDelta} p.p.). `+
+      `No ciclo mais recente, a folga média em relação à reta foi de `+
+      `<strong>${avgFolga>0?'+':''}${avgFolga} pts</strong>, com <strong>${pctRisco}%</strong> `+
+      `dos docentes em zona de risco. A volatilidade atual da produção foi de `+
+      `<strong>${lastCV}%</strong> e o IQR foi de <strong>${lastIQR} pts.</strong>`;
+
+    const kpis=[
+      {label:'TENDÊNCIA',          value:(slope>0?'+':'')+slope,      sub:'pts/ano',        color:slope>=0?'#1a4b8c':'#b33a3a'},
+      {label:'VARIAÇÃO\nACUMULADA',value:(varAcum>0?'+':'')+varAcum,  sub:'produção média', color:varAcum>=0?'#2d7a3a':'#b33a3a'},
+      {label:'FOLGA ATUAL',        value:(avgFolga>0?'+':'')+avgFolga, sub:'pts vs reta',   color:avgFolga>=0?'#2d7a3a':'#b33a3a'},
+      {label:'RISCO ATUAL',        value:pctRisco+'%',                 sub:'folga negativa', color:pctRisco<=25?'#2d7a3a':pctRisco<=50?'#b36b1a':'#b33a3a'},
+    ];
+    const dateStr=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
+
+    return e('div',{className:'temporal-section'},
+      e('h2',null,'Relatório Temporal RADOC'),
+      e('p',{className:'subtitle'},'Evolução histórica da unidade com base nos snapshots carregados'),
+      e('div',{style:{display:'flex',gap:16,alignItems:'center',flexWrap:'wrap',
+                      margin:'6px 0 20px 0',fontSize:11,color:'var(--text-muted)'}},
+        e('span',null,'📅 '+dateStr),
+        e('span',null,'✅ '+allPoints.length+' ciclos analisados'),
+        e('span',null,'📋 Anos: '+years.join(', ')),
       ),
-      e('div', { className:'temporal-chart-grid' },
-        e('div', { className:'temporal-chart-box' },
-          e('h3', null, 'Produção Acadêmica — Média e Mediana'),
-          e('p', null, 'Evolução da produção média (sem aulas) ao longo dos anos'),
-          e('div', { style:{height:220,position:'relative'} }, e('canvas',{ref:trendProdRef})),
+
+      // KPIs
+      e('div',{className:'temporal-kpi-grid'},
+        kpis.map((k,i)=>e('div',{key:i,className:'temporal-kpi-card',
+            style:{['--tkpi-color']:k.color}},
+          e('div',{className:'tk-label'},k.label),
+          e('div',{className:'tk-value'},k.value),
+          e('div',{className:'tk-sub'},k.sub),
+        ))
+      ),
+
+      // Síntese
+      e('h3',{style:{fontSize:14,fontWeight:700,color:'var(--accent)',margin:'0 0 8px 0'}},'Síntese'),
+      e('div',{className:'temporal-synopsis'},
+        e('p',{dangerouslySetInnerHTML:{__html:synopsisHtml}})
+      ),
+
+      // Gráficos
+      e('h3',{style:{fontSize:14,fontWeight:700,color:'var(--accent)',margin:'20px 0 8px 0'}},'Gráficos temporais'),
+      e('div',{className:'temporal-charts-intro'},
+        'Cada gráfico abaixo responde uma pergunta objetiva de gestão: se a unidade está ganhando tração, se está mais estável ou mais desigual, quão distante está da reta mínima e quais áreas ou categorias explicam as mudanças observadas.'
+      ),
+
+      // Linha 1
+      e('div',{className:'temporal-chart-grid'},
+        e('div',{className:'temporal-chart-box'},
+          e('div',{className:'temporal-chart-title'},'Produção: média, mediana, média móvel e tendência'),
+          e('div',{className:'temporal-chart-desc'},
+            'Mostra o comportamento central da produção ao longo do tempo. A média resume o conjunto, a mediana reduz o efeito de extremos, a média móvel suaviza oscilações e a tendência indica a direção estrutural da série.'),
+          e('div',{style:{height:240,position:'relative'}},e('canvas',{ref:prodRef})),
         ),
-        e('div', { className:'temporal-chart-box' },
-          e('h3', null, 'Taxa — Acima da Reta'),
-          e('p', null, '% de professores acima da reta por ano · Verde ≥75% · Laranja ≥50%'),
-          e('div', { style:{height:220,position:'relative'} }, e('canvas',{ref:trendAprovRef})),
+        e('div',{className:'temporal-chart-box'},
+          e('div',{className:'temporal-chart-title'},'Taxa de docentes acima da reta por ano'),
+          e('div',{className:'temporal-chart-desc'},
+            'Mostra o percentual de docentes posicionados acima da reta em cada ciclo. O esperado é estabilidade ou crescimento; quedas sucessivas sugerem aumento de pressão sobre a unidade.'),
+          e('div',{style:{height:240,position:'relative'}},e('canvas',{ref:aprovRef})),
         ),
       ),
-      e('div', { className:'temporal-chart-grid' },
-        e('div', { className:'temporal-chart-box' },
-          e('h3', null, 'Evolução por Categoria de Atividade'),
-          e('p', null, 'Médias anuais por categoria — identifica tendências de crescimento ou queda'),
-          e('div', { style:{height:240,position:'relative'} }, e('canvas',{ref:trendCatRef})),
+
+      // Linha 2
+      e('div',{className:'temporal-chart-grid'},
+        e('div',{className:'temporal-chart-box'},
+          e('div',{className:'temporal-chart-title'},'Folga média em relação à reta'),
+          e('div',{className:'temporal-chart-desc'},
+            'Mede quão longe a unidade está da reta mínima, em pontos. Valores positivos indicam margem de segurança; valores negativos mostram que, em média, a unidade entrou em zona de risco.'),
+          e('div',{style:{height:220,position:'relative'}},e('canvas',{ref:folgaRef})),
         ),
-        e('div', { className:'temporal-chart-box' },
-          e('h3', null, 'Evolução por Área'),
-          e('p', null, 'Produção média anual por área — permite comparar trajetórias'),
-          e('div', { style:{height:240,position:'relative'} }, e('canvas',{ref:trendAreaRef})),
+        e('div',{className:'temporal-chart-box'},
+          e('div',{className:'temporal-chart-title'},'Volatilidade e dispersão'),
+          e('div',{className:'temporal-chart-desc'},
+            'Resume a heterogeneidade interna da produção. CV alto ou IQR crescente indicam maior desigualdade entre docentes ou maior instabilidade entre ciclos.'),
+          e('div',{style:{height:220,position:'relative'}},e('canvas',{ref:volRef})),
         ),
-      ),    );
+      ),
+
+      // Linha 3
+      e('div',{className:'temporal-chart-grid'},
+        e('div',{className:'temporal-chart-box'},
+          e('div',{className:'temporal-chart-title'},'Evolução por categoria'),
+          e('div',{className:'temporal-chart-desc'},
+            'Decompõe a trajetória por grandes grupos de atividade. Serve para identificar se ganhos ou perdas vieram de produção intelectual, pesquisa, extensão, administração e demais componentes.'),
+          e('div',{style:{height:240,position:'relative'}},e('canvas',{ref:catRef})),
+        ),
+        e('div',{className:'temporal-chart-box'},
+          e('div',{className:'temporal-chart-title'},'Evolução por área'),
+          e('div',{className:'temporal-chart-desc'},
+            'Compara as trajetórias médias das áreas da unidade. Ajuda a identificar áreas em expansão, estabilização ou perda de tração ao longo dos ciclos.'),
+          e('div',{style:{height:240,position:'relative'}},e('canvas',{ref:areaRef})),
+        ),
+      ),
+    );
+  }
+
+
+  // ============================================================
+  // REVISÃO MANUAL POR ÁREA — visível no app após upload por área
+  // ============================================================
+  function AreaReviewSection({ evaluations }) {
+    const [expandedAreas, setExpandedAreas] = useState({});
+
+    const issueGroups = useMemo(() => {
+      const groups = [];
+      AREAS.forEach(ar => {
+        const evs = evaluations.filter(ev =>
+          ev.area === ar.id &&
+          Array.isArray(ev.manualReviewIssues) &&
+          ev.manualReviewIssues.length > 0
+        );
+        if (evs.length > 0) groups.push({ area: ar, evs });
+      });
+      const noArea = evaluations.filter(ev =>
+        ev.area === AREA_ALL &&
+        Array.isArray(ev.manualReviewIssues) &&
+        ev.manualReviewIssues.length > 0
+      );
+      if (noArea.length > 0)
+        groups.push({ area: { id: AREA_ALL, label: 'Sem área específica', color: '#888' }, evs: noArea });
+      return groups;
+    }, [evaluations]);
+
+    if (!issueGroups.length) return null;
+
+    const totalIssues = issueGroups.reduce((s, g) =>
+      s + g.evs.reduce((s2, ev) => s2 + ev.manualReviewIssues.length, 0), 0);
+
+    return e('div', { className: 'area-review-section' },
+      e('div', { className: 'area-section-label', style: { color: 'var(--orange)' } },
+        `⚠ Pendências para revisão manual — ${totalIssues} item(ns) não computado(s)`
+      ),
+      issueGroups.map(({ area, evs }) => {
+        const isOpen = expandedAreas[area.id] !== false;
+        const totalArea = evs.reduce((s, ev) => s + ev.manualReviewIssues.length, 0);
+        return e('div', { key: area.id, className: 'area-review-card',
+            style: { borderLeftColor: area.color } },
+          e('div', {
+            className: 'area-review-card-header',
+            onClick: () => setExpandedAreas(prev => ({ ...prev, [area.id]: !isOpen })),
+          },
+            e('h4', { style: { color: area.color } }, area.label),
+            e('span', { style: { fontSize: 12, color: 'var(--orange)', fontWeight: 600 } },
+              `⚠ ${totalArea} item(ns) · ${evs.length} professor(es) ${isOpen ? '▲' : '▼'}`
+            ),
+          ),
+          isOpen && e('div', { className: 'area-review-body' },
+            [...evs].sort((a, b) => a.name.localeCompare(b.name)).map(ev =>
+              e('div', { key: ev.id, className: 'docente-issue-block' },
+                e('div', { className: 'docente-issue-name' },
+                  `Docente: ${ev.name} (${ev.regime})`
+                ),
+                e('div', { className: 'docente-issue-count' },
+                  `⚠ ${ev.manualReviewIssues.length} item(ns) não computado(s) — requer revisão manual:`
+                ),
+                ev.manualReviewIssues.map((msg, i) =>
+                  e('div', { key: i, className: 'issue-msg' }, msg)
+                ),
+              )
+            ),
+          ),
+        );
+      }),
+      e('p', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 8 } },
+        'Oriente cada professor a preencher o "Item da Resolução" no SICAD para os itens listados. ' +
+        'Reprocesse os RADOCs corrigidos para recuperar a pontuação não computada.'
+      ),
+    );
   }
 
   function SummaryTable() {
@@ -4062,6 +4329,10 @@ ${reviewManualHtml}
           );
         })
       ),
+
+      evaluations.some(ev => Array.isArray(ev.manualReviewIssues) && ev.manualReviewIssues.length > 0)
+        ? e(AreaReviewSection, { evaluations })
+        : null,
 
       // ── Snapshot controls ───────────────────────────────────
       e('div', { style:{ display:'flex', gap:8, alignItems:'center', margin:'16px 0 8px 0', flexWrap:'wrap' } },
