@@ -1782,6 +1782,7 @@ function App() {
   const [snapshots, setSnapshots]   = useState([]); // [{year, label, evaluations, thresholdDE, threshold20}]
   const [snapshotYear, setSnapshotYear] = useState(new Date().getFullYear());
   const [reportArea, setReportArea]       = useState(AREA_ALL);
+  const [showSummary, setShowSummary]     = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
   const areaRefs    = useRef({});
 
@@ -4724,7 +4725,30 @@ ${areaMapHtml}
           onClick:()=>{ setEvaluations([]); setExpanded(null); }
         }, 'Limpar tudo'),
       ),
-            e(SummaryTable),
+      evaluations.length > 0 && e('div', { style: { margin: '16px 0 0 0' } },
+        e('button', {
+          onClick: () => setShowSummary(prev => !prev),
+          style: {
+            display: 'flex', alignItems: 'center', gap: 8,
+            width: '100%', padding: '12px 18px',
+            background: showSummary ? 'var(--accent)' : 'var(--surface)',
+            color: showSummary ? 'white' : 'var(--accent)',
+            border: '1px solid var(--accent)', borderRadius: showSummary ? '6px 6px 0 0' : 6,
+            fontFamily: 'inherit', fontSize: 14, fontWeight: 700,
+            cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
+          }
+        },
+          e('span', { style: { flex: 1 } }, '\u{1F4CB} Resultado Final \u2014 Com Tetos Aplicados'),
+          e('span', { style: { fontSize: 13, opacity: 0.8 } },
+            showSummary ? '\u25B2 Recolher' : ('\u25BC Expandir (' + evaluations.length + ' RADOC' + (evaluations.length !== 1 ? 's' : '') + ')'))
+        ),
+        showSummary && e('div', {
+          style: {
+            border: '1px solid var(--accent)', borderTop: 'none',
+            borderRadius: '0 0 6px 6px', overflow: 'hidden',
+          }
+        }, e(SummaryTable)),
+      ),
       evaluations.length > 0 && e(AnalysisChart, { evaluations, thresholdDE, threshold20 }),
       evaluations.length > 0 && e(DashboardCharts, { evaluations, thresholdDE, threshold20, reportArea, setReportArea, reportLoading, generateReport }),
       evaluations.length > 0 && e(HeatmapChart, { evaluations }),
