@@ -4418,8 +4418,54 @@ function fmtVal(v) {
   return String(v);
 }
 
-function CADEvalModule({ evaluations, onClose }) {
-  const { useState: uS, useMemo: uM, useEffect: uE } = React;
+function CADEvalModule({ evaluations: evalsGlobal, onClose }) {
+  const { useState: uS, useMemo: uM, useEffect: uE, useRef: uR } = React;
+
+  // RADOCs carregados localmente no modal CAD
+  const [localEvals,   setLocalEvals]   = uS([]);
+  const [cadUploading, setCadUploading] = uS(false);
+  const [cadDragOver,  setCadDragOver]  = uS(false);
+  const cadFileRef = uR(null);
+
+  // Combina globais + locais, deduplica por id
+  const evaluations = uM(() => {
+    const seen = new Set();
+    return [...evalsGlobal, ...localEvals].filter(ev => {
+      if (seen.has(ev.id)) return false; seen.add(ev.id); return true;
+    });
+  }, [evalsGlobal, localEvals]);
+
+  async function handleCadFiles(files) {
+    setCadUploading(true);
+    const added = [];
+    for (const file of files) {
+      if (!file.name.toLowerCase().endsWith('.pdf')) continue;
+      try {
+        const text = await extractTextFromPDF(file);
+        const { name, regime } = parseDocenteInfo(text, file.name);
+        const { items, warnings } = parseItems(text);
+        const missingCode = warnings.filter(w => typeof w === 'object' && w.type === 'sem_codigo');
+        const scores = calculateScores(items);
+        added.push({
+          id: 'cad_' + Date.now() + '_' + Math.random().toString(36).substr(2,6),
+          name, regime, fileName: file.name, scores,
+          area: 'CAD_LOCAL', itemCount: items.length,
+          timestamp: new Date().toISOString(),
+          manualReviewIssues: missingCode.map(w => w.msg),
+        });
+      } catch(e) { console.error('CAD upload err:', e); }
+    }
+    if (added.length) {
+      setLocalEvals(prev => {
+        const next = [...prev, ...added];
+        // auto-selecionar professor se ainda não selecionado e só um nome novo
+        const allNames = [...new Set([...evalsGlobal, ...next].map(ev => ev.name))];
+        if (!profName && allNames.length === 1) setProfName(allNames[0]);
+        return next;
+      });
+    }
+    setCadUploading(false);
+  }
 
   const [profName,   setProfName]   = uS('');
   const [classe,     setClasse]     = uS('');
@@ -4609,6 +4655,16 @@ function CADEvalModule({ evaluations, onClose }) {
   );
   const temResultado = !!(resultado || probResult);
 
+
+  // ── Upload zone CSS inline strings
+  const cadDropStyle = {
+    border: '2px dashed ' + (cadDragOver ? 'var(--accent)' : 'var(--border)'),
+    borderRadius: 6, padding: '14px 20px',
+    background: cadDragOver ? 'var(--accent-light)' : 'var(--surface-alt)',
+    display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
+    transition: 'all 0.15s', flexWrap: 'wrap',
+  };
+
   return e('div', { className: 'cad-overlay', onClick: ev => { if (ev.target.classList.contains('cad-overlay')) onClose(); } },
     e('div', { className: 'cad-modal' },
 
@@ -4618,6 +4674,48 @@ function CADEvalModule({ evaluations, onClose }) {
       ),
 
       e('div', { className: 'cad-modal-body' },
+
+        // ── Upload de RADOCs dentro do módulo CAD ──────────────
+        e('div', { style: { marginBottom: 4 } },
+          e('div', {
+            style: cadDropStyle,
+            onClick: () => cadFileRef.current && cadFileRef.current.click(),
+            onDragOver: ev => { ev.preventDefault(); setCadDragOver(true); },
+            onDragLeave: () => setCadDragOver(false),
+            onDrop: ev => {
+              ev.preventDefault(); setCadDragOver(false);
+              handleCadFiles(Array.from(ev.dataTransfer.files));
+            },
+          },
+            e('input', { ref: cadFileRef, type: 'file', accept: '.pdf', multiple: true, style: { display: 'none' },
+              onChange: ev => handleCadFiles(Array.from(ev.target.files)) }),
+            e('span', { style: { fontSize: 22 } }, cadUploading ? '⏳' : '📄'),
+            e('div', null,
+              e('div', { style: { fontSize: 13, fontWeight: 600, color: 'var(--accent)' } },
+                cadUploading ? 'Processando RADOCs...' : 'Arraste os RADOCs do professor aqui'),
+              e('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 } },
+                'ou clique para selecionar · PDFs do SICAD · aceita múltiplos arquivos')
+            ),
+            localEvals.length > 0 && e('div', {
+              style: { marginLeft: 'auto', display: 'flex', flexWrap: 'wrap', gap: 6 }
+            },
+              localEvals.map(ev => e('span', {
+                key: ev.id,
+                style: { background: 'var(--accent)', color: '#fff', borderRadius: 12,
+                         padding: '2px 10px', fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }
+              },
+                yearFromFile(ev.fileName) + ' — ' + ev.name.split(' ')[0],
+                e('span', {
+                  style: { cursor: 'pointer', opacity: 0.8, fontWeight: 700, fontSize: 13 },
+                  onClick: ev2 => { ev2.stopPropagation(); setLocalEvals(prev => prev.filter(x => x.id !== ev.id)); }
+                }, '×')
+              ))
+            ),
+            evalsGlobal.length > 0 && localEvals.length === 0 && e('div', {
+              style: { marginLeft: 'auto', fontSize: 11, color: 'var(--green)', fontWeight: 600 }
+            }, '✓ ' + evalsGlobal.length + ' RADOC(s) da plataforma disponíveis')
+          )
+        ),
 
         e('div', { className: 'cad-section-sep' }, '1. Identificação'),
         e('div', { className: 'cad-field-row' },
