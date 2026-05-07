@@ -4467,6 +4467,7 @@ function CADEvalModule({ evaluations: evalsGlobal, onClose }) {
     setCadUploading(false);
   }
 
+  const [matricula,  setMatricula]  = uS('');
   const [profName,   setProfName]   = uS('');
   const [classe,     setClasse]     = uS('');
   const [nivel,      setNivel]      = uS('');
@@ -4525,122 +4526,416 @@ function CADEvalModule({ evaluations: evalsGlobal, onClose }) {
 
   function gerarRelatorio() {
     const regLbl = profEvals.length ? profEvals[0].regime : regime;
-    let html = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">'
-      + '<title>Relatório CAD — ' + profName + '</title><style>'
-      + 'body{font-family:Arial,sans-serif;font-size:10pt;color:#111;margin:0;padding:0}'
-      + '.page{max-width:800px;margin:0 auto;padding:32px 40px}'
-      + 'h1{font-size:13pt;font-weight:700;color:#1a4b8c;margin:0 0 4px 0}'
-      + 'h2{font-size:11pt;font-weight:700;color:#1a4b8c;margin:16px 0 6px 0;border-bottom:1px solid #ccc;padding-bottom:3px}'
-      + '.mt{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:9.5pt}'
-      + '.mt td{padding:4px 8px;border:1px solid #ddd}'
-      + '.mt td:first-child{font-weight:700;background:#f5f5f5;width:40%}'
-      + 'table.sc{width:100%;border-collapse:collapse;font-size:9.5pt;margin-bottom:10px}'
-      + 'table.sc th{background:#1a4b8c;color:#fff;padding:5px 8px;text-align:left}'
-      + 'table.sc td{padding:5px 8px;border:1px solid #ddd}'
-      + 'table.sc tr:nth-child(even) td{background:#f9f9f9}'
-      + '.ok{color:#2d7a3a;font-weight:700}.no{color:#b33a3a;font-weight:700}.warn{color:#b36b1a;font-weight:700}'
-      + '.verd{font-size:12pt;font-weight:700;padding:10px 16px;margin:12px 0;border-radius:4px}'
-      + '.verd.APROVADO{background:#e8f5ea;color:#2d7a3a;border:1px solid #2d7a3a}'
-      + '.verd.REPROVADO{background:#fce8e8;color:#b33a3a;border:1px solid #b33a3a}'
-      + '.verd.CONDICIONAL{background:#fff3e0;color:#b36b1a;border:1px solid #b36b1a}'
-      + '.aviso{background:#fff3e0;border:1px solid #b36b1a;padding:8px 12px;font-size:9pt;color:#7a4a00;border-radius:4px;margin:10px 0}'
-      + '.num{text-align:right;font-family:monospace}'
-      + '.sm{display:flex;flex-wrap:wrap;gap:10px 20px;background:#f5f5f5;padding:8px 12px;border-radius:4px;font-size:9pt;margin-bottom:12px}'
-      + '.sm span{display:flex;flex-direction:column}.sm b{font-size:11pt;color:#1a4b8c}'
-      + 'hr{border:none;border-top:1px solid #ddd;margin:16px 0}'
-      + '@media print{body{font-size:9.5pt}}</style></head><body><div class="page">';
 
-    html += '<div style="text-align:center;margin-bottom:20px">'
-      + '<div style="font-size:11pt;font-weight:700;color:#1a4b8c">UNIVERSIDADE FEDERAL DE GOIÁS — ESCOLA DE ENGENHARIA CIVIL E AMBIENTAL</div>'
-      + '<div style="font-size:10pt;font-weight:700;margin-top:4px">COMISSÃO DE AVALIAÇÃO DOCENTE — CAD</div>'
-      + '<div style="font-size:9pt;color:#555;margin-top:2px">Resolução CONSUNI nº 18/2017</div></div>';
+    // ── Helper: soma de um prefixo de seção/subseção a partir dos details
+    function subSum(details, sect) {
+      // sect ex: 'II-1', 'IV-3', 'V-2'
+      return Math.round(
+        details.filter(d => {
+          if (!d.code) return false;
+          const p = d.code.split('-');
+          if (p.length < 2) return false;
+          // Roman section + subsection number, e.g. II-1
+          const prefix = p[0] + '-' + p[1];
+          return prefix === sect;
+        }).reduce((s, d) => s + (d.calculated || 0), 0)
+      * 100) / 100;
+    }
+    function sectSum(details, sect) {
+      // sect ex: 'I', 'II', 'III', 'IV', 'V'
+      return Math.round(
+        details.filter(d => {
+          if (!d.code) return false;
+          return d.code.split('-')[0] === sect;
+        }).reduce((s, d) => s + (d.calculated || 0), 0)
+      * 100) / 100;
+    }
+    function ptBR(v) {
+      if (v === null || v === undefined) return '—';
+      return (typeof v === 'number' ? v.toFixed(1) : String(v)).replace('.', ',');
+    }
 
-    html += '<h1>Quadro Sumário — ' + (CAD_TYPE_LABELS[tipo] || tipo) + '</h1>';
-    html += '<table class="mt"><tbody>'
-      + '<tr><td>Professor(a)</td><td>' + profName + '</td></tr>'
-      + '<tr><td>Unidade Acadêmica</td><td>Escola de Engenharia Civil e Ambiental — UFG</td></tr>'
-      + '<tr><td>Processo</td><td>' + (processo || '—') + '</td></tr>'
-      + '<tr><td>Regime de Trabalho</td><td>' + regLbl + '</td></tr>'
-      + '<tr><td>Tipo de Avaliação</td><td>' + (CAD_TYPE_LABELS[tipo] || tipo) + '</td></tr>'
-      + '</tbody></table>';
+    // ── CSS do relatório ────────────────────────────────────────
+    const CSS = `
+body { font-family: Arial, sans-serif; font-size: 10pt; color: #111; margin: 0; padding: 0; }
+.page { max-width: 760px; margin: 0 auto; padding: 28px 36px; }
+.ufg-header { text-align: center; margin-bottom: 16px; }
+.ufg-header .u1 { font-size: 11pt; font-weight: 700; }
+.ufg-header .u2 { font-size: 10.5pt; font-weight: 700; }
+.ufg-header .u3 { font-size: 10pt; font-weight: 700; margin-top: 2px; }
+h2.qs { text-align: center; font-size: 10.5pt; font-weight: 700; text-decoration: underline; margin: 14px 0 12px; }
+table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 9.5pt; }
+table td, table th { border: 1px solid #999; padding: 4px 8px; }
+.meta td:first-child { font-weight: 700; width: 35%; }
+.meta td.val2 { width: 65%; }
+.meta .key2 { font-weight: 700; }
+.sec-header td { background: #ddd; font-weight: 700; }
+.sub-row td { }
+.sub-row td.lbl { padding-left: 18px; }
+.total-row td { font-weight: 700; background: #f5f5f5; }
+.total-row td.num { text-align: right; }
+.num { text-align: right; font-family: 'Courier New', monospace; }
+.info-key { font-size: 9pt; }
+.info-val { text-align: right; font-family: 'Courier New', monospace; font-weight: 700; width: 80px; }
+.add-header td { background: #eee; font-weight: 700; text-align: center; font-size: 9pt; }
+.add-label { font-size: 9pt; }
+.sintese-header td { font-weight: 700; background: #ddd; text-align: center; }
+.sintese-row td { font-size: 9pt; vertical-align: top; padding: 4px 8px; }
+.sintese-val { text-align: right; font-family: 'Courier New', monospace; width: 100px; }
+.sintese-ok { text-align: center; width: 80px; font-weight: 700; }
+.ok { color: #1a6e2a; } .no { color: #b00000; }
+.verd { font-size: 11pt; font-weight: 700; padding: 8px 14px; margin: 12px 0;
+  border-radius: 4px; text-align: center; }
+.verd.APROVADO { background: #e8f5ea; color: #1a6e2a; border: 1px solid #1a6e2a; }
+.verd.REPROVADO { background: #fce8e8; color: #b00000; border: 1px solid #b00000; }
+.verd.CONDICIONAL { background: #fff3e0; color: #7a4a00; border: 1px solid #b36b1a; }
+.parecer-title { font-weight: 700; text-decoration: underline; margin: 18px 0 6px; font-size: 9.5pt; }
+.assinaturas { display: flex; flex-wrap: wrap; gap: 24px 48px; margin-top: 28px; }
+.ass-item { display: flex; flex-direction: column; gap: 2px; min-width: 200px; }
+.ass-line { border-bottom: 1px solid #333; width: 240px; margin-bottom: 2px; height: 20px; }
+.ass-label { font-size: 8.5pt; }
+.aviso-ext { background: #fff3e0; border: 1px solid #b36b1a; padding: 8px 12px; font-size: 9pt;
+  color: #7a4a00; margin: 10px 0; }
+.page-break { page-break-before: always; }
+@media print { body { font-size: 9pt; } .no-print { display: none; } }`;
+
+    // ── Construir páginas ───────────────────────────────────────
+    function buildBienioPage(r, bi, b, ev1, ev2) {
+      const sc1 = ev1 ? ev1.scores : null;
+      const sc2 = ev2 ? ev2.scores : null;
+      if (!sc1 || !sc2) return '';
+
+      const y1 = yearFromFile(ev1.fileName);
+      const y2 = yearFromFile(ev2.fileName);
+      const det = [...(sc1.details || []), ...(sc2.details || [])];
+
+      // ── Seção I ──────────────────────────────────────────────
+      const i1v  = Math.round((sc1.ENS_GRAD  + sc2.ENS_GRAD)  * 100) / 100;
+      const i2v  = Math.round((sc1.ENS_POS   + sc2.ENS_POS)   * 100) / 100;
+      const i3v  = Math.round((sc1.PROJ_ENS  + sc2.PROJ_ENS)  * 100) / 100;
+      const itot = Math.round((i1v + i2v + i3v) * 100) / 100;
+
+      // ── Seção II ─────────────────────────────────────────────
+      const ii1v = subSum(det, 'II-1');
+      const ii2v = subSum(det, 'II-2');
+      const ii3v = subSum(det, 'II-3');
+      const ii4v = subSum(det, 'II-4');
+      const iitot = Math.round((sc1.PRI + sc2.PRI) * 100) / 100; // usa valor com teto
+
+      // ── Seção III ────────────────────────────────────────────
+      const iii1v = Math.round((sc1.PSQ + sc2.PSQ) * 100) / 100;
+      const iii2v = Math.round((sc1.EXT + sc2.EXT) * 100) / 100;
+      const iiitot = Math.round((iii1v + iii2v) * 100) / 100;
+
+      // ── Seção IV e V: usa details para split IV vs V ─────────
+      const iv1v = subSum(det, 'IV-1');
+      const iv2v = subSum(det, 'IV-2');
+      const iv3v = subSum(det, 'IV-3');
+      const iv4v = subSum(det, 'IV-4');
+      const ivtot = Math.round((iv1v + iv2v + iv3v + iv4v) * 100) / 100;
+
+      const v1v  = subSum(det, 'V-1');
+      const v2v  = subSum(det, 'V-2');
+      const v3v  = subSum(det, 'V-3');
+      const vtot = Math.round((v1v + v2v + v3v) * 100) / 100;
+
+      // ── P, N, S ───────────────────────────────────────────────
+      const P = Math.round((sc1.TOTAL + sc2.TOTAL) * 100) / 100;
+      const N = r.N;
+      const S = Math.round((P - iitot) * 100) / 100; // I+III+IV+V
+
+      // ── Avaliações ────────────────────────────────────────────
+      const est = b.est || ['','','',''];
+      const ch  = b.ch  || ['',''];
+      function fEst(idx) { const v = parseFloat(est[idx]); return isNaN(v) ? '—' : ptBR(v); }
+      function fCh(idx)  { const v = parseFloat(ch[idx]);  return isNaN(v) ? '—' : ptBR(v); }
+      const estMed = r.estMed !== null ? ptBR(r.estMed) : '—';
+      const chMed  = r.chMed  !== null ? ptBR(r.chMed)  : '—';
+
+      // ── Texto do inciso III com ajuste se aplicável ───────────
+      let inc3lbl = 'III. obter, pelo menos, 40 (quarenta) pontos no item II, Produção Intelectual';
+      if (r.incisos[2] && r.incisos[2].ajuste) {
+        const aj = r.incisos[2].ajuste;
+        inc3lbl = 'III. Prod. Intelectual ≥ ' + ptBR(aj.exigido) + ' pts (ajuste §§: S=' + ptBR(aj.S) + ' → ' + aj.kS + '−S/4)';
+      }
+
+      // ── Artigo de referência ──────────────────────────────────
+      const artRef = tipo === 'progressao' ? 'Art. 27' : (tipo === 'promocao_e' ? 'Art. 52' : 'Art. 39');
+      const incisos6 = tipo === 'promocao_e' ? r.incisos : r.incisos;
+
+      // ── Texto do parecer automático ───────────────────────────
+      const tipoTexto = {
+        progressao:  'progressão funcional',
+        promocao_bc: 'promoção funcional',
+        promocao_d:  'promoção funcional para a Classe D',
+        promocao_e:  'promoção funcional para a Classe E (Professor Titular)',
+        probatorio:  'aprovação no estágio probatório',
+      }[tipo] || tipo;
+      const favoravel = !r.reprovado;
+      const parecerTexto = 'Avaliadas as atividades do(a) docente ' + profName
+        + ', no interstício de 24 (vinte e quatro) meses, conforme RADOCs dos anos '
+        + y1 + ' e ' + y2 + ', em conformidade com os critérios estabelecidos pela'
+        + ' Resolução CONSUNI nº 18/2017, '
+        + (favoravel
+          ? 'consideram-se atendidas todas as exigências formais necessárias à sua ' + tipoTexto
+            + ', notadamente aquelas definidas nos incisos I a ' + (tipo === 'promocao_e' ? 'IV' : 'VI')
+            + ' do ' + artRef + ' da referida Resolução. Nestes termos, o parecer da CAD'
+            + ' designada para esse tipo de avaliação é favorável à ' + tipoTexto + ' do(a) docente.'
+          : 'verifica-se que o(a) docente não cumpriu todos os requisitos necessários à sua '
+            + tipoTexto + ', conforme análise detalhada dos incisos do ' + artRef
+            + ' da referida Resolução. Nestes termos, o parecer da CAD é desfavorável à '
+            + tipoTexto + ' do(a) docente.');
+
+      const verdadeiroVerd = r.reprovado ? 'REPROVADO' : (r.condicional ? 'CONDICIONAL' : 'APROVADO');
+      const verdMsg = r.reprovado
+        ? 'REPROVADO — não cumpriu um ou mais dos requisitos obrigatórios'
+        : (r.condicional
+          ? 'CONDICIONAL — verificar §§ 1º e 2º do Art. 39 (dispensas especiais para Inciso III)'
+          : 'APROVADO em todos os critérios da avaliação de desempenho');
+
+      let pg = '';
+
+      // ── Cabeçalho ────────────────────────────────────────────
+      if (bi > 0) pg += '<div class="page-break"></div>';
+      pg += '<div class="ufg-header">'
+        + '<div class="u1">UNIVERSIDADE FEDERAL DE GOIÁS</div>'
+        + '<div class="u2">ESCOLA DE ENGENHARIA CIVIL E AMBIENTAL</div>'
+        + '<div class="u3">COMISSÃO DE AVALIAÇÃO DOCENTE – CAD</div>'
+        + '</div>';
+
+      pg += '<h2 class="qs">Quadro Sumário da Avaliação</h2>';
+
+      // ── Metadados ─────────────────────────────────────────────
+      pg += '<table class="meta">'
+        + '<tr><td>Professor:</td><td colspan="3" class="val2">' + profName + '</td></tr>'
+        + '<tr><td>Matrícula:</td><td>' + (matricula || '—') + '</td>'
+        + '<td class="key2">Processo:</td><td>' + (processo || '—') + '</td></tr>'
+        + '<tr><td>Unidade Acadêmica:</td><td>Escola de Engenharia Civil e Ambiental</td>'
+        + '<td class="key2">Regime de trabalho:</td><td>' + regLbl + '</td></tr>'
+        + '<tr><td>Anos dos RADOCs avaliados:</td><td colspan="3">' + y1 + ' e ' + y2 + '</td></tr>'
+        + '</table>';
+
+      // ── Função auxiliar para tabela de seção ──────────────────
+      function secTable(numRoman, titulo, rows) {
+        let t = '<table>'
+          + '<tr class="sec-header"><td colspan="2"><strong>' + numRoman + '</strong> '
+          + titulo + ' (Anexo II)</td>'
+          + '<td class="num" style="width:160px;text-align:right"><strong>Pontuação total – 2 anos</strong></td></tr>';
+        rows.forEach(row => {
+          if (row.isTotal) {
+            t += '<tr class="total-row"><td colspan="2" style="text-align:right">Pontuação total do item</td>'
+              + '<td class="num"><strong>' + ptBR(row.val) + '</strong></td></tr>';
+          } else {
+            t += '<tr class="sub-row"><td style="width:48px;text-align:center">' + row.code + '</td>'
+              + '<td class="lbl">' + row.label + '</td>'
+              + '<td class="num">' + ptBR(row.val) + '</td></tr>';
+          }
+        });
+        t += '</table>';
+        return t;
+      }
+
+      pg += secTable('I', 'ATIVIDADES DE ENSINO', [
+        { code: 'I-1', label: 'Ensino Básico ou de Graduação', val: i1v },
+        { code: 'I-2', label: 'Ensino de Pós-Graduação', val: i2v },
+        { code: 'I-3', label: 'Projetos de Ensino', val: i3v },
+        { isTotal: true, val: itot },
+      ]);
+
+      pg += secTable('II', 'PRODUÇÃO INTELECTUAL', [
+        { code: 'II-1', label: 'Produção Científica', val: ii1v },
+        { code: 'II-2', label: 'Produção Artística e Cultural', val: ii2v },
+        { code: 'II-3', label: 'Produção Técnica ou Tecnológica', val: ii3v },
+        { code: 'II-4', label: 'Outro Tipo de Produção', val: ii4v },
+        { isTotal: true, val: iitot },
+      ]);
+
+      pg += secTable('III', 'ATIVIDADES DE PESQUISA E DE EXTENSÃO', [
+        { code: 'III-1', label: 'Atividades de Pesquisa', val: iii1v },
+        { code: 'III-2', label: 'Atividades de Extensão', val: iii2v },
+        { isTotal: true, val: iiitot },
+      ]);
+
+      pg += secTable('IV', 'ATIVIDADES ADMINISTRATIVAS E DE REPRESENTAÇÃO', [
+        { code: 'IV-1', label: 'Direção e Função Gratificada', val: iv1v },
+        { code: 'IV-2', label: 'Atividades Administrativas', val: iv2v },
+        { code: 'IV-3', label: 'Outras Atividades Administrativas', val: iv3v },
+        { code: 'IV-4', label: 'Atividades de Representação Fora da UFG', val: iv4v },
+        { isTotal: true, val: ivtot },
+      ]);
+
+      pg += secTable('V', 'OUTRAS ATIVIDADES', [
+        { code: 'V-1', label: 'Atividades Acadêmicas – Orientação', val: v1v },
+        { code: 'V-2', label: 'Atividades Acadêmicas – Bancas e Cursos', val: v2v },
+        { code: 'V-3', label: 'Atividades de Aprendizado e Aperfeiçoamento', val: v3v },
+        { isTotal: true, val: vtot },
+      ]);
+
+      // ── Informações adicionais ────────────────────────────────
+      pg += '<table>'
+        + '<tr class="sec-header"><td colspan="2"><strong>Informações adicionais</strong></td>'
+        + '<td class="num" style="width:80px"><strong>Pontos</strong></td></tr>'
+        + '<tr><td colspan="2" class="info-key">P – Soma da Pontuação Total dos itens I, II, III, IV e V</td>'
+        + '<td class="info-val">' + ptBR(P) + '</td></tr>'
+        + '<tr><td colspan="2" class="info-key">N – Nota Final da CAD (Regime ' + regLbl
+          + ' – mín{10, P/' + (regLbl === '20H' ? '20' : '32') + '})</td>'
+        + '<td class="info-val">' + ptBR(N) + '</td></tr>'
+        + '<tr><td colspan="2" class="info-key">S – Soma da Pontuação Total dos itens I, III, IV e V</td>'
+        + '<td class="info-val">' + ptBR(S) + '</td></tr>'
+        + '</table>';
+
+      // ── Avaliações adicionais ─────────────────────────────────
+      pg += '<table>'
+        + '<tr class="add-header">'
+        + '<td rowspan="2" style="width:220px">Avaliações adicionais</td>'
+        + '<td colspan="2">Ano 1</td><td colspan="2">Ano 2</td>'
+        + '<td rowspan="2">Nota<br>média</td></tr>'
+        + '<tr class="add-header"><td>1º Sem</td><td>2º Sem</td><td>1º Sem</td><td>2º Sem</td></tr>'
+        + '<tr><td class="add-label">Avaliações dos Estudantes</td>'
+        + '<td class="num">' + fEst(0) + '</td><td class="num">' + fEst(1) + '</td>'
+        + '<td class="num">' + fEst(2) + '</td><td class="num">' + fEst(3) + '</td>'
+        + '<td class="num"><strong>' + estMed + '</strong></td></tr>'
+        + '<tr><td class="add-label">Avaliação da Direção/Chefia da Unidade</td>'
+        + '<td class="num" colspan="2">' + fCh(0) + '</td>'
+        + '<td class="num" colspan="2">' + fCh(1) + '</td>'
+        + '<td class="num"><strong>' + chMed + '</strong></td></tr>'
+        + '</table>';
+
+      // ── Síntese da Avaliação ─────────────────────────────────
+      const incisoTextos = tipo === 'promocao_e' ? [
+        'I. obter, pelo menos, 80 (oitenta) pontos no item I-1, Atividades de Ensino Básico ou Ensino de Graduação',
+        'II. obter, pelo menos, 160 (cento e sessenta) pontos nos itens I-1 e I-2, Atividades de Ensino Básico ou Ensino de Graduação ou Ensino Pós-Graduação, conforme Art. 57 da LDB (Lei 9.394/96)',
+        inc3lbl,
+        'IV. obter nota final N da CAD igual ou superior a 7,5 (sete vírgula cinco) pontos na avaliação, conforme Art. 50',
+      ] : [
+        'I. obter, pelo menos, 80 (oitenta) pontos no item I-1, Atividades de Ensino Básico ou Ensino de Graduação',
+        'II. obter, pelo menos, 160 (cento e sessenta) pontos nos itens I-1 e I-2, Atividades de Ensino Básico, ou Ensino de Graduação ou Ensino Pós-Graduação, conforme estabelece o Art. 57 da Lei nº 9394/96, de 20/12/1996 (LDB)',
+        inc3lbl,
+        'IV. obter média final igual ou superior a 6,0 (seis vírgula zero) nas avaliações dos estudantes',
+        'V. obter nota igual ou superior a seis vírgula zero 6,0 (seis vírgula zero) na avaliação da Direção/Chefia da Unidade',
+        'VI. obter nota final N da CAD igual ou superior a 7,5 (sete vírgula cinco) pontos na avaliação, conforme ' + artRef,
+      ];
+
+      pg += '<table>'
+        + '<tr class="sintese-header"><td colspan="3">Síntese da Avaliação da CAD</td></tr>'
+        + '<tr class="sintese-header"><td>Incisos – ' + artRef + '</td>'
+        + '<td class="sintese-val">Pontuação obtida</td>'
+        + '<td class="sintese-ok">Cumpre a exigência</td></tr>';
+
+      r.incisos.forEach((inc, idx) => {
+        const label = incisoTextos[idx] || inc.label;
+        const val = inc.val !== null && inc.val !== undefined
+          ? ptBR(inc.val) : '—';
+        const ok = inc.met ? 'Sim' : 'Não';
+        const cls = inc.met ? 'ok' : 'no';
+        pg += '<tr class="sintese-row">'
+          + '<td>' + label + '</td>'
+          + '<td class="sintese-val ' + cls + '">' + val + '</td>'
+          + '<td class="sintese-ok ' + cls + '">' + ok + '</td>'
+          + '</tr>';
+      });
+      pg += '</table>';
+
+      if (r.incisos[2] && r.incisos[2].ajuste) {
+        const aj = r.incisos[2].ajuste;
+        pg += '<p style="font-size:8.5pt;color:#7a4a00;margin:4px 0 8px 0">'
+          + '⚠ Ajuste do Inciso III (§§ 1º/2º do ' + artRef + '): S = ' + ptBR(aj.S)
+          + ' pts (superior a 160). Valor exigido no Inciso III = ' + aj.kS + ' − S/4 = '
+          + ptBR(aj.exigido) + ' pts.</p>';
+      }
+
+      if (tipo === 'promocao_e') {
+        pg += '<div class="aviso-ext">⚠ <strong>Atenção — 2ª Etapa (CEA):</strong> '
+          + 'A avaliação acima refere-se exclusivamente à 1ª etapa (desempenho acadêmico via RADOCs). '
+          + 'A promoção à Classe E requer também aprovação na 2ª etapa: apresentação e defesa de '
+          + 'memorial descritivo ou tese acadêmica inédita perante a Comissão Especial de Avaliação '
+          + '(CEA), conforme Arts. 46 a 60 da Resolução CONSUNI nº 18/2017.</div>';
+      }
+
+      // ── Parecer Fundamentado ─────────────────────────────────
+      pg += '<p class="parecer-title">Parecer Fundamentado da CAD</p>';
+      pg += '<p style="font-size:9pt;margin:10px 0">Goiânia, _____ de __________________ de ________.</p>';
+
+      pg += '<div class="assinaturas">';
+      for (let i = 0; i < 5; i++) {
+        pg += '<div class="ass-item"><div class="ass-line"></div>'
+          + '<div class="ass-label">Membro da CAD</div></div>';
+      }
+      pg += '</div>';
+
+      pg += '<p style="font-size:9pt;margin-top:24px;text-align:justify">' + parecerTexto + '</p>';
+
+      pg += '<div class="verd ' + verdadeiroVerd + '">' + verdMsg + '</div>';
+
+      return pg;
+    }
+
+    // ── Montar HTML completo ────────────────────────────────────
+    let pagesHtml = '';
 
     if (tipo === 'probatorio' && probResult) {
+      // Probatório: página simplificada (estrutura diferente)
       const r = probResult;
-      const radocLbls = radocsProb.filter(id=>id).map(id => { const ev = evaluations.find(e=>e.id===id); return ev ? yearFromFile(ev.fileName) : id; }).join(', ');
-      html += '<table class="mt"><tbody>'
-        + '<tr><td>RADOCs avaliados</td><td>' + radocLbls + '</td></tr>'
-        + '<tr><td>Meses avaliados (k)</td><td>' + r.k + '</td></tr>'
-        + '</tbody></table>';
-      html += '<div class="sm">'
-        + '<span><small>I-1 acum.</small><b>' + r.i1 + '</b></span>'
-        + '<span><small>I-1+I-2 acum.</small><b>' + r.i1i2 + '</b></span>'
-        + '<span><small>II (Prod.) acum.</small><b>' + r.prod + '</b></span>'
-        + '<span><small>P total</small><b>' + r.P + '</b></span>'
-        + '<span><small>Nota N parcial</small><b>' + r.N.toFixed(1) + '</b></span>'
-        + (r.estMed !== null ? '<span><small>Méd. Estudantes</small><b>' + r.estMed.toFixed(1) + '</b></span>' : '')
-        + (r.chMed  !== null ? '<span><small>Méd. Chefia</small><b>' + r.chMed.toFixed(1) + '</b></span>' : '')
-        + '</div>';
-      html += '<h2>Síntese — Incisos Art. 18</h2>'
-        + '<table class="sc"><thead><tr><th>Inciso</th><th class="num">Valor obtido</th><th class="num">Exigência</th><th style="text-align:center">Cumpre</th></tr></thead><tbody>';
+      const radocLbls = radocsProb.filter(id=>id).map(id => {
+        const ev = evaluations.find(e=>e.id===id);
+        return ev ? yearFromFile(ev.fileName) : id;
+      }).join(', ');
+      pagesHtml += '<div class="ufg-header">'
+        + '<div class="u1">UNIVERSIDADE FEDERAL DE GOIÁS</div>'
+        + '<div class="u2">ESCOLA DE ENGENHARIA CIVIL E AMBIENTAL</div>'
+        + '<div class="u3">COMISSÃO DE AVALIAÇÃO DOCENTE – CAD</div></div>';
+      pagesHtml += '<h2 class="qs">Quadro Sumário — Estágio Probatório (Art. 18)</h2>';
+      pagesHtml += '<table class="meta">'
+        + '<tr><td>Professor:</td><td colspan="3">' + profName + '</td></tr>'
+        + '<tr><td>Matrícula:</td><td>' + (matricula||'—') + '</td>'
+        + '<td class="key2">Processo:</td><td>' + (processo||'—') + '</td></tr>'
+        + '<tr><td>Unidade Acadêmica:</td><td>Escola de Engenharia Civil e Ambiental</td>'
+        + '<td class="key2">Regime:</td><td>' + regLbl + '</td></tr>'
+        + '<tr><td>RADOCs avaliados:</td><td>' + radocLbls + '</td>'
+        + '<td class="key2">Meses (k):</td><td>' + r.k + '</td></tr>'
+        + '</table>';
+      pagesHtml += '<table>'
+        + '<tr class="sintese-header"><td colspan="3">Síntese da Avaliação da CAD</td></tr>'
+        + '<tr class="sintese-header"><td>Incisos – Art. 18</td>'
+        + '<td class="sintese-val">Valor obtido</td>'
+        + '<td class="sintese-ok">Cumpre</td></tr>';
       r.incisos.forEach(inc => {
-        const vs = inc.isBool ? (inc.met ? 'Sim' : 'Não') : fmtVal(inc.val);
-        const ts = inc.thr !== null ? fmtVal(inc.thr) : '—';
-        const cl = inc.met ? 'ok' : (inc.isBool ? 'no' : 'warn');
-        html += '<tr><td>' + inc.label + '</td><td class="num">' + vs + '</td><td class="num">' + ts + '</td><td style="text-align:center" class="' + cl + '">' + (inc.met ? 'Sim' : 'Não') + '</td></tr>';
+        const vs  = inc.isBool ? (inc.met ? 'Sim' : 'Não') : (inc.val !== null ? ptBR(inc.val) : '—');
+        const cls = inc.met ? 'ok' : 'no';
+        pagesHtml += '<tr class="sintese-row"><td>' + inc.label + '</td>'
+          + '<td class="sintese-val ' + cls + '">' + vs + '</td>'
+          + '<td class="sintese-ok ' + cls + '">' + (inc.met ? 'Sim' : 'Não') + '</td></tr>';
       });
-      html += '</tbody></table>';
-      const vs = r.reprovado ? 'REPROVADO' : 'APROVADO';
-      html += '<div class="verd ' + vs + '">Resultado parcial: ' + vs + '</div>';
+      pagesHtml += '</table>';
+      const vs2 = r.reprovado ? 'REPROVADO' : 'APROVADO';
+      pagesHtml += '<div class="verd ' + vs2 + '">'
+        + 'Resultado parcial (k=' + r.k + ' meses): ' + vs2 + '</div>';
+      pagesHtml += '<p class="parecer-title">Parecer Fundamentado da CAD</p>';
+      pagesHtml += '<p style="font-size:9pt">Goiânia, _____ de __________________ de ________.</p>';
+      pagesHtml += '<div class="assinaturas">'
+        + '<div class="ass-item"><div class="ass-line"></div><div class="ass-label">Membro da CAD</div></div>'.repeat(3)
+        + '</div>';
+
     } else if (resultado && resultado.length) {
       resultado.forEach((r, bi) => {
         if (!r) return;
-        const b = bienios[bi] || {};
-        const ev1 = evaluations.find(e=>e.id===b.r1id), ev2 = evaluations.find(e=>e.id===b.r2id);
-        const y1 = ev1 ? yearFromFile(ev1.fileName) : '—', y2 = ev2 ? yearFromFile(ev2.fileName) : '—';
-        html += '<h2>' + (resultado.length > 1 ? 'Avaliação ' + (bi+1) + ' — ' : '') + 'RADOCs ' + y1 + ' e ' + y2 + '</h2>';
-        html += '<table class="mt"><tbody><tr><td>Anos dos RADOCs avaliados</td><td>' + y1 + ' e ' + y2 + '</td></tr></tbody></table>';
-        html += '<div class="sm">'
-          + '<span><small>I-1 (Grad.)</small><b>' + r.i1 + '</b></span>'
-          + '<span><small>I-1+I-2 (Ens.)</small><b>' + r.i1i2 + '</b></span>'
-          + '<span><small>II (Prod. Int.)</small><b>' + r.prod + '</b></span>'
-          + '<span><small>P total</small><b>' + r.P + '</b></span>'
-          + '<span><small>S (sem prod)</small><b>' + r.S + '</b></span>'
-          + '<span><small>Nota N</small><b>' + r.N.toFixed(1) + '</b></span>'
-          + (r.estMed !== null ? '<span><small>Méd. Estudantes</small><b>' + r.estMed.toFixed(1) + '</b></span>' : '')
-          + (r.chMed  !== null ? '<span><small>Méd. Chefia</small><b>' + r.chMed.toFixed(1) + '</b></span>' : '')
-          + '</div>';
-        const artLbl = tipo === 'promocao_e' ? 'Art. 52' : (tipo === 'progressao' ? 'Art. 27' : 'Art. 39');
-        html += '<h2>Síntese — Incisos ' + artLbl + '</h2>'
-          + '<table class="sc"><thead><tr><th>Inciso</th><th class="num">Valor obtido</th><th class="num">Exigência</th><th style="text-align:center">Cumpre</th></tr></thead><tbody>';
-        r.incisos.forEach(inc => {
-          const vs = fmtVal(inc.val), ts = inc.thr !== null ? fmtVal(inc.thr) : '—';
-          const cl = inc.met ? 'ok' : 'no';
-          html += '<tr><td>' + inc.label + '</td><td class="num">' + vs + '</td><td class="num">' + ts + '</td><td style="text-align:center" class="' + cl + '">' + (inc.met ? 'Sim' : 'Não') + '</td></tr>';
-        });
-        html += '</tbody></table>';
-        if (r.incisos[2] && r.incisos[2].ajuste) {
-          const aj = r.incisos[2].ajuste;
-          html += '<div class="aviso">⚠ Ajuste do Inciso III: S = ' + aj.S.toFixed(1) + ' pts (> 160). Exigência ajustada: ' + aj.kS + ' − S/4 = ' + aj.exigido.toFixed(1) + ' pts.</div>';
-        }
-        const vs  = r.reprovado ? 'REPROVADO' : (r.condicional ? 'CONDICIONAL' : 'APROVADO');
-        const msg = r.reprovado ? 'REPROVADO na avaliação de desempenho.'
-          : (r.condicional ? 'Inciso III não cumprido — verificar §§ 1º/2º (dispensas especiais).'
-          : 'APROVADO na avaliação de desempenho.');
-        html += '<div class="verd ' + vs + '">' + msg + '</div>';
-        if (tipo === 'promocao_e') {
-          html += '<div class="aviso">⚠ <strong>Atenção — 2ª Etapa (CEA):</strong> A aprovação acima refere-se apenas à 1ª etapa (desempenho acadêmico — CAD). A promoção à Classe E requer também aprovação na 2ª etapa: defesa de memorial ou tese acadêmica inédita perante a Comissão Especial de Avaliação (CEA), conforme Arts. 46–60 da CONSUNI 18/2017.</div>';
-        }
-        if (bi < resultado.length - 1) html += '<hr>';
+        const b   = bienios[bi] || {};
+        const ev1 = evaluations.find(e => e.id === b.r1id);
+        const ev2 = evaluations.find(e => e.id === b.r2id);
+        pagesHtml += buildBienioPage(r, bi, b, ev1, ev2);
       });
     }
 
-    html += '<hr><p style="font-size:9pt;color:#555;margin-bottom:8px">Parecer Fundamentado da CAD</p>'
-      + '<p style="font-size:9pt;margin-top:24px">Goiânia, _____ de ______________ de ________.</p>'
-      + '<div style="display:flex;gap:40px;margin-top:32px;flex-wrap:wrap">'
-      + '<div>___________________________________<br><small>Membro da CAD</small></div>'.repeat(3)
-      + '</div></div></body></html>';
+    const fullHtml = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">'
+      + '<title>Parecer CAD — ' + profName + '</title>'
+      + '<style>' + CSS + '</style></head><body>'
+      + '<div class="page">' + pagesHtml + '</div>'
+      + '<div class="no-print" style="text-align:center;padding:20px">'
+      + '<button onclick="window.print()" style="padding:8px 24px;font-size:12pt;cursor:pointer">Imprimir / Salvar PDF</button>'
+      + '</div>'
+      + '</body></html>';
 
-    const blob = new Blob([html], { type: 'text/html' });
+    const blob = new Blob([fullHtml], { type: 'text/html' });
     const url  = URL.createObjectURL(blob);
     const win  = window.open(url, '_blank');
     if (win) win.focus();
@@ -4725,6 +5020,10 @@ function CADEvalModule({ evaluations: evalsGlobal, onClose }) {
               e('option', { value: '' }, evaluations.length ? '— selecione —' : '⚠ Carregue RADOCs primeiro'),
               profNames.map(n => e('option', { key: n, value: n }, n))
             )
+          ),
+          e('div', { className: 'cad-field', style: { flex: 0, minWidth: 130 } },
+            e('label', null, 'Matrícula SIAPE'),
+            e('input', { type: 'text', placeholder: 'ex: 1446472', value: matricula, onChange: ev => setMatricula(ev.target.value) })
           ),
           e('div', { className: 'cad-field' },
             e('label', null, 'Processo'),
