@@ -4617,6 +4617,121 @@ function CADEvalModule({ evaluations: evalsGlobal, onClose }) {
     }
   }
 
+
+  const cadLoadRef = uR(null);
+
+  // ── Salvar estado completo da análise em JSON ─────────────
+  function salvarAnalise() {
+    // Captura os objetos de avaliação usados (scores + metadados), sem o blob do PDF
+    const evalsUsadas = [];
+    const idsUsados = new Set();
+    if (tipo !== 'probatorio') {
+      bienios.forEach(b => {
+        [b.r1id, b.r2id].forEach(id => {
+          if (id && !idsUsados.has(id)) {
+            const ev = evaluations.find(e => e.id === id);
+            if (ev) { evalsUsadas.push(ev); idsUsados.add(id); }
+          }
+        });
+      });
+    } else {
+      radocsProb.forEach(id => {
+        if (id && !idsUsados.has(id)) {
+          const ev = evaluations.find(e => e.id === id);
+          if (ev) { evalsUsadas.push(ev); idsUsados.add(id); }
+        }
+      });
+    }
+
+    const estado = {
+      _versao: '1.0',
+      _geradoEm: new Date().toISOString(),
+      // Identificação
+      profName, matricula, processo, classe, nivel,
+      tipoManual,
+      // Biênios
+      numBienios,
+      bienios,
+      excecaoPorBienio,
+      diasLicPorBienio,
+      // Probatório
+      kMeses, radocsProb, cursouDoc, estProb, chProb, excecaoProb,
+      // RADOCs embutidos (scores + metadados, sem o PDF bruto)
+      evalsEmbutidas: evalsUsadas.map(ev => ({
+        id: ev.id,
+        name: ev.name,
+        regime: ev.regime,
+        fileName: ev.fileName,
+        scores: ev.scores,
+        area: ev.area || 'CAD_LOCAL',
+        itemCount: ev.itemCount,
+        timestamp: ev.timestamp,
+        manualReviewIssues: ev.manualReviewIssues || [],
+      })),
+    };
+
+    const json  = JSON.stringify(estado, null, 2);
+    const blob  = new Blob([json], { type: 'application/json' });
+    const url   = URL.createObjectURL(blob);
+    const link  = document.createElement('a');
+    const prof  = profName.split(' ')[0] || 'analise';
+    const data  = new Date().toISOString().slice(0,10);
+    link.href     = url;
+    link.download = 'CAD_' + prof + '_' + data + '.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ── Carregar estado salvo de um arquivo JSON ──────────────
+  function carregarAnalise(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev2 => {
+      try {
+        const estado = JSON.parse(ev2.target.result);
+        if (!estado._versao) throw new Error('Arquivo inválido');
+
+        // Restaurar RADOCs embutidos no pool local
+        if (estado.evalsEmbutidas && estado.evalsEmbutidas.length) {
+          setLocalEvals(prev => {
+            const existingIds = new Set(prev.map(e => e.id));
+            const novos = estado.evalsEmbutidas.filter(e => !existingIds.has(e.id));
+            return [...prev, ...novos];
+          });
+        }
+
+        // Restaurar estado do formulário
+        if (estado.profName)   setProfName(estado.profName);
+        if (estado.matricula)  setMatricula(estado.matricula);
+        if (estado.processo)   setProcesso(estado.processo);
+        if (estado.classe)     setClasse(estado.classe);
+        if (estado.nivel)      setNivel(estado.nivel);
+        if (estado.tipoManual) setTipoManual(estado.tipoManual);
+
+        // Biênios
+        if (estado.numBienios) setNumBienios(estado.numBienios);
+        if (estado.bienios)    setBienios(estado.bienios);
+        if (estado.excecaoPorBienio) setExcecaoPorBienio(estado.excecaoPorBienio);
+        if (estado.diasLicPorBienio) setDiasLicPorBienio(estado.diasLicPorBienio);
+
+        // Probatório
+        if (estado.kMeses !== undefined)  setKMeses(estado.kMeses);
+        if (estado.radocsProb)            setRadocsProb(estado.radocsProb);
+        if (estado.cursouDoc !== undefined) setCursouDoc(estado.cursouDoc);
+        if (estado.estProb)               setEstProb(estado.estProb);
+        if (estado.chProb)                setChProb(estado.chProb);
+        if (estado.excecaoProb)           setExcecaoProb(estado.excecaoProb);
+
+        // Limpar resultados anteriores para forçar recálculo
+        setResultado(null); setProbResult(null);
+
+      } catch(err) {
+        alert('Erro ao carregar o arquivo: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  }
+
   function gerarRelatorio() {
     const regLbl = profEvals.length ? profEvals[0].regime : regime;
 
@@ -5084,6 +5199,17 @@ table td, table th { border: 1px solid #999; padding: 4px 8px; }
               e('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 } },
                 'ou clique para selecionar · PDFs do SICAD · aceita múltiplos arquivos')
             ),
+            e('div', { style: { marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' },
+                onClick: ev2 => ev2.stopPropagation() },
+              e('input', { ref: cadLoadRef, type: 'file', accept: '.json', style: { display: 'none' },
+                onChange: ev2 => { carregarAnalise(ev2.target.files[0]); ev2.target.value = ''; } }),
+              e('button', {
+                className: 'btn btn-sm',
+                title: 'Carregar análise salva anteriormente (.json)',
+                onClick: ev2 => { ev2.stopPropagation(); cadLoadRef.current && cadLoadRef.current.click(); },
+                style: { fontSize: 12, whiteSpace: 'nowrap' }
+              }, '📂 Carregar análise salva')
+            ),
             localEvals.length > 0 && e('div', {
               style: { marginLeft: 'auto', display: 'flex', flexWrap: 'wrap', gap: 6 }
             },
@@ -5330,6 +5456,12 @@ table td, table th { border: 1px solid #999; padding: 4px 8px; }
         tipo && e('div', { className: 'cad-report-btn-row' },
           e('button', { className: 'btn btn-primary', disabled: !podaCalc, onClick: calcular,
             title: !podaCalc ? 'Selecione professor, tipo e todos os RADOCs' : '' }, '⚙ Calcular Critérios'),
+          podaCalc && e('button', {
+            className: 'btn btn-sm',
+            onClick: salvarAnalise,
+            title: 'Salvar estado da análise em arquivo JSON para continuar depois',
+            style: { fontSize: 12 }
+          }, '💾 Salvar análise'),
           temResultado && e('button', { className: 'btn', onClick: gerarRelatorio }, '📄 Gerar Relatório HTML')
         ),
 
