@@ -1776,7 +1776,7 @@ function buildReportCharts(evs, regime, refs, thDE, th20) {
         datasets:[
           { label:'Produção Média', data:areaData,
             backgroundColor:AREAS.map(a=>a.color).map(c=>c+'cc'), borderColor:AREAS.map(a=>a.color), borderWidth:2, borderRadius:3 },
-          thr>0 ? { label:'Limiar Xm', data:AREAS.map(a=>a.label).map(()=>Math.round(Tm)),
+          thr>0 ? { label:`Limiar (${Math.round(Tm)} pts)`, data:AREAS.map(a=>a.label).map(()=>Math.round(Tm)),
             type:'line', borderColor:'#1a4b8c', borderWidth:2, borderDash:[6,3], pointRadius:0, fill:false } : null,
         ].filter(Boolean) },
         options:{ responsive:false, maintainAspectRatio:false,
@@ -2163,7 +2163,7 @@ function App() {
 
       // Narrative
       const narrative=`<h3>1. Síntese Executiva</h3>
-<p>O relatório analisa <strong>${total} professor(es)</strong> de ${scopeLabel}. ${approved} (${pctA}%) atingiram a meta, enquanto ${total-approved} (${100-pctA}%) não atingiram. ${T_de>0?`Limiar de referência (Xm): <strong>${T_de} pts</strong> para DE/40H.`:'<strong>Atenção:</strong> nenhum limiar Xm foi definido.'} ${pctA>=75?'Índice de aprovação satisfatório.':pctA>=50?'Índice moderado — parte da unidade requer atenção.':'Índice abaixo do desejável — necessária intervenção da gestão.'} Produção média: <strong>${avgProd} pts</strong> (mediana: ${Math.round(medProd)} pts); HAS médio: ${avgHAS} h/sem. ${capHit>0?`${capHit} professor(es) tiveram pontuação reduzida pelos tetos da Resolução.`:''}</p>
+<p>O relatório analisa <strong>${total} professor(es)</strong> de ${scopeLabel}. ${approved} (${pctA}%) atingiram a meta, enquanto ${total-approved} (${100-pctA}%) não atingiram. ${T_de>0?`Limiar de Aprovação: <strong>${T_de} pts</strong> para DE/40H.`:'<strong>Atenção:</strong> nenhum limiar Xm foi definido.'} ${pctA>=75?'Índice de aprovação satisfatório.':pctA>=50?'Índice moderado — parte da unidade requer atenção.':'Índice abaixo do desejável — necessária intervenção da gestão.'} Produção média: <strong>${avgProd} pts</strong> (mediana: ${Math.round(medProd)} pts); HAS médio: ${avgHAS} h/sem. ${capHit>0?`${capHit} professor(es) tiveram pontuação reduzida pelos tetos da Resolução.`:''}</p>
 <h3>2. Análise do Desempenho de Ensino</h3>
 <p>HAS médio: <strong>${avgHAS} h/sem</strong>. ${onlyEnsin.length>0?`${onlyEnsin.length} professor(es) com alta carga docente (≥16h/sem) e baixa produção — possível sobrecarga reduzindo tempo para pesquisa.`:'Distribuição entre ensino e produção sem concentrações críticas detectadas.'} Pontuação média em ensino: ${catData.find(c=>c.key==='ENS_TOTAL').avg} pts (variação: ${catData.find(c=>c.key==='ENS_TOTAL').min}–${catData.find(c=>c.key==='ENS_TOTAL').max} pts).</p>
 <h3>3. Análise da Produção Intelectual e Técnica</h3>
@@ -2223,14 +2223,14 @@ ${reportArea !== AREA_ALL && areaProfs.length > 0 ? `<br><br>Foco em <strong>${s
 <br><br>Pontos <strong>próximos à fronteira</strong> merecem atenção prioritária — uma pequena variação de carga ou produção pode definir aprovação ou não no próximo ciclo.`,
 
         barArea:(() => {
-          if (!T_de || !fullBestArea) return 'Defina o limiar Xm para ativar a análise comparativa.';
+          if (!T_de || !fullBestArea) return 'Defina o Limiar de Aprovação (DE/40H) para ativar a análise comparativa.';
           const limiar  = Math.round(Tm_de);
           const ranked  = [...fullAreaStats].sort((a,b)=>b.avgProd-a.avgProd);
           const top     = ranked[0];
           const bottom  = ranked[ranked.length-1];
           const topDiff = top.avgProd - limiar;
           const botDiff = bottom.avgProd - limiar;
-          let txt = `O limiar de referência é <strong>${limiar} pts</strong> (Xm × 1,05). `;
+          let txt = `O limiar de referência é <strong>${limiar} pts</strong> (Limiar de Aprovação configurado). `;
           txt += `<strong>${top.label}</strong> tem a maior produção média: ${top.avgProd} pts`
                + (topDiff>=0 ? `, ${topDiff} pts acima do limiar.` : `, ${Math.abs(topDiff)} pts abaixo do limiar.`);
           if (top.label!==bottom.label)
@@ -2844,9 +2844,12 @@ ${reviewManualHtml}
 
       if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
 
-      // ── Axis ranges ────────────────────────────────────────
-      const hasTop = bnd ? bnd.hasTop : (isDE ? 16 : 10);
-      const yMax   = hasTop + 2;
+      // ── Axis ranges ─── limites fixos por regime (CONSUNI) ──
+      // DE/40H: inferior=8h, superior=16h → yMax=18 para folga visual
+      // 20H:    inferior=8h, superior=10h → yMax=12 para folga visual
+      const yHardTop = isDE ? 16 : 10;   // limite superior do regime
+      const yHardBot = 8;                 // limite inferior (LDB) para ambos
+      const yMax     = yHardTop + 2;      // folga visual acima
       const xMax   = Math.ceil(maxX * 1.05 / 50) * 50;
 
       chartRef.current = new Chart(canvasRef.current, {
@@ -2934,7 +2937,11 @@ ${reviewManualHtml}
               ticks: {
                 stepSize: 2,
                 font: { family: "'IBM Plex Mono', monospace", size: 10 },
-                callback: v => v % 2 === 0 ? `${v}h` : '',
+                callback: v => {
+                  if (v === yHardBot) return yHardBot + 'h ←mín';
+                  if (v === yHardTop) return yHardTop + 'h ←máx';
+                  return v % 2 === 0 ? `${v}h` : '';
+                },
               },
               grid: { color: '#ebe9e4' },
             },
@@ -3362,6 +3369,20 @@ ${reviewManualHtml}
       }); return; }
 
       const T = dashRegime === '20H' ? threshold20 : (thresholdDE > 0 ? thresholdDE : threshold20);
+      // ── Calcular yMax compartilhado com stacked chart ──────
+      const catKeysForMax = ['ENS_TOTAL','PROJ_ENS','PRI','PSQ','EXT','ADM','RPT','OTR'];
+      const stackedTotals = areaIds.map(id => {
+        const evs = dashEvs.filter(ev => ev.area === id);
+        if (!evs.length) return 0;
+        return catKeysForMax.reduce((sum, key) =>
+          sum + Math.round(evs.map(ev => ev.scores[key]).reduce((s,v)=>s+v,0) / evs.length), 0);
+      });
+      const barMax     = Math.max(...areaData.filter(v => v != null), 0);
+      const stackedMax = Math.max(...stackedTotals, 0);
+      const sharedYMax = Math.ceil(Math.max(barMax, stackedMax, T > 0 ? Math.round(1.05*T) : 0) / 100) * 100 + 50;
+      window._cadSharedYMax = sharedYMax; // compartilha com stacked useEffect
+
+      const thrLabel = T > 0 ? `Limiar (${Math.round(T)} pts)` : null;
       buildChart(barAreaRef, barAreaChart, {
         type: 'bar',
         data: {
@@ -3376,8 +3397,8 @@ ${reviewManualHtml}
               borderRadius: 4,
             },
             T > 0 ? {
-              label: dashRegime === '20H' ? 'Limiar Xm 20H (1,05×T)' : 'Limiar Xm (1,05×T)',
-              data: areaLabels.map(() => Math.round(1.05 * T)),
+              label: thrLabel,
+              data: areaLabels.map(() => Math.round(T)),
               type: 'line',
               borderColor: '#1a4b8c',
               borderWidth: 2,
@@ -3396,7 +3417,7 @@ ${reviewManualHtml}
           },
           scales: {
             x: { ticks:{ font:{ size:10 } }, grid:{ display:false } },
-            y: { beginAtZero:true, ticks:{ font:{ size:10 }, callback: v => v+' pts' }, grid:{ color:'#ebe9e4' } },
+            y: { beginAtZero:true, max: sharedYMax, ticks:{ font:{ size:10 }, callback: v => v+' pts' }, grid:{ color:'#ebe9e4' } },
           },
         },
       });
@@ -3576,7 +3597,7 @@ ${reviewManualHtml}
       e('div', { className:'dash-charts-grid' },
         e('div', { className:'dash-chart-box' },
           e('h3', null, 'Produção média por área'),
-          e('p', null, 'Média de pontos de produção (sem aulas) por área, com linha do limiar Xm'),
+          e('p', null, 'Média de pontos de produção (sem aulas) por área, com linha do Limiar de Aprovação'),
           e('div', { style:{ height:260, position:'relative' } },
             e('canvas', { ref:barAreaRef, id:'chart-bar-area' })
           ),
@@ -3601,7 +3622,7 @@ ${reviewManualHtml}
         ),
         e('div', { className:'dash-chart-box' },
           e('h3', null, 'Distribuição da produção'),
-          e('p', null, 'Número de professores por faixa de produção · Vermelho = abaixo do limiar Xm'),
+          e('p', null, 'Número de professores por faixa de produção · Vermelho = abaixo do Limiar de Aprovação'),
           e('div', { style:{ height:220, position:'relative' } },
             e('canvas', { ref:histRef,    id:'chart-hist' })
           ),
