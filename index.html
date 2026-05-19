@@ -5632,7 +5632,7 @@ function calcHd(pae, regime, mpae40, mpae20) {
 // Ag: I-1-* (graduação, presencial + EAD)
 // Ass: I-2-1 (pós-grad stricto sensu presencial/EAD — não inclui I-2-2 lato sensu)
 function calcTeachingHours(details) {
-  let horasGrad = 0, horasStricto = 0;
+  let horasGrad = 0, horasStricto = 0, horasLato = 0;
   (details || []).forEach(d => {
     if (!d.code) return;
     const pts = d.calculated || 0;
@@ -5642,12 +5642,15 @@ function calcTeachingHours(details) {
       horasGrad += pts * 32 / 10;
     } else if (c[1] === '2' && c[2] === '1') {
       horasStricto += pts * 32 / 10;
+    } else if (c[1] === '2' && c[2] === '2') {
+      horasLato += pts * 32 / 10;          // lato sensu: excluído do CDRD, mas registrado
     }
-    // I-2-2 (lato sensu, remunerada) excluído
   });
   return {
-    Ag:  Math.round(horasGrad   * 10) / 10,
-    Ass: Math.round(horasStricto * 10) / 10,
+    Ag:         Math.round(horasGrad    * 10) / 10,
+    Ass:        Math.round(horasStricto * 10) / 10,
+    horasLato:  Math.round(horasLato    * 10) / 10,
+    horasRadoc: Math.round((horasGrad + horasStricto + horasLato) * 10) / 10,
   };
 }
 
@@ -5662,12 +5665,13 @@ function computeCR(evaluations, mpae40, mpae20) {
     if (!byArea[ev.area]) return;
     const pae  = calcPAE(ev.scores);
     const hd   = calcHd(pae, ev.regime, mpae40, mpae20);
-    const { Ag, Ass } = calcTeachingHours(ev.scores.details);
+    const { Ag, Ass, horasRadoc } = calcTeachingHours(ev.scores.details);
     byArea[ev.area].profs.push({
       name: ev.name,
       regime: ev.regime,
       pae,
       hd: Math.round(hd * 100) / 100,
+      horasRadoc,
       Ag,
       Ass,
       cdrd: Math.round((Ag + Ass) * 10) / 10,
@@ -5780,96 +5784,354 @@ function CRDModule({ evaluations, thresholdDE, threshold20, onClose }) {
   // ── Relatório HTML ────────────────────────────────────────────
   function gerarRelatorioCR() {
     if (!crData) return;
-    const m20  = mpae20 || mpae40;  // usa mpae20; fallback para mpae40
+    const m20  = mpae20 || mpae40;
     const LI40 = mpae40 > 0 ? Math.round((8/12)  * mpae40 * 10) / 10 : '—';
     const LS40 = mpae40 > 0 ? Math.round((16/12) * mpae40 * 10) / 10 : '—';
     const LI20 = m20    > 0 ? Math.round((8/12)  * m20    * 10) / 10 : '—';
     const LS20 = m20    > 0 ? Math.round((10/12) * m20    * 10) / 10 : '—';
 
+    const CSS = `
+body{font-family:Arial,sans-serif;font-size:10pt;color:#111;margin:0;padding:0}
+.page{max-width:800px;margin:0 auto;padding:28px 36px}
+h1{font-size:13pt;font-weight:700;color:#1a4b8c;margin:0 0 4px 0}
+h2{font-size:11pt;font-weight:700;color:#1a4b8c;margin:18px 0 6px 0;border-bottom:2px solid #1a4b8c;padding-bottom:3px}
+h3{font-size:10.5pt;font-weight:700;color:#1a4b8c;margin:12px 0 4px 0}
+table{width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:12px}
+th{background:#1a4b8c;color:#fff;padding:5px 8px;text-align:left;font-size:8.5pt}
+th.num{text-align:right}
+td{padding:5px 8px;border:1px solid #ddd;vertical-align:top}
+tr:nth-child(even) td{background:#f9f9f9}
+.num{text-align:right;font-family:monospace}
+.crd-hi{background:#fce8e8;color:#b00000;font-weight:700}
+.crd-ok{background:#e8f5ea;color:#1a6e2a;font-weight:700}
+.crd-lo{background:#fff3e0;color:#7a4a00;font-weight:700}
+.param-box{background:#f0f4ff;border:1px solid #c0cce8;border-radius:4px;padding:10px 14px;font-size:9.5pt;margin-bottom:12px;line-height:1.6}
+.param-box b{color:#1a4b8c}
+.narrative{font-size:9.5pt;line-height:1.6;text-align:justify;margin:6px 0 10px 0;padding:0 2px}
+.narrative strong{color:#1a4b8c}
+.synth-table td,.synth-table th{font-size:9pt}
+.dept-header{font-size:10pt;font-weight:700;margin:10px 0 2px 0;padding-bottom:2px}
+.dict-entry{margin-bottom:14px;padding:8px 12px;background:#f9f9f9;border-left:3px solid #1a4b8c;border-radius:0 4px 4px 0}
+.dict-entry .term{font-size:10pt;font-weight:700;color:#1a4b8c;margin-bottom:2px}
+.dict-entry .formula{font-family:monospace;font-size:9pt;background:#eef2fb;padding:3px 8px;border-radius:3px;display:inline-block;margin:3px 0}
+.dict-entry .interp{font-size:9pt;color:#444;margin-top:4px}
+.alert-box{border-radius:4px;padding:8px 12px;font-size:9pt;margin:6px 0}
+.alert-hi{background:#fce8e8;border:1px solid #e09090;color:#800}
+.alert-ok{background:#e8f5ea;border:1px solid #90c898;color:#1a4b28}
+.alert-lo{background:#fff3e0;border:1px solid #e0c090;color:#704000}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+@media print{body{font-size:9pt}.no-print{display:none}}`;
+
+    // ── Automated narrative generator ──────────────────────────
+    function generateNarrative(data) {
+      const sorted = [...data].sort((a,b) => a.CRD - b.CRD);
+      const total  = evaluations.length;
+
+      // Unit-level summary
+      const unitCDPD = sorted.reduce((s,d) => s+d.CDPD, 0);
+      const unitCDRD = sorted.reduce((s,d) => s+d.CDRD, 0);
+      const unitCRD  = unitCDPD > 0 ? Math.round(unitCDRD/unitCDPD*1000)/1000 : 0;
+      const above    = sorted.filter(d => d.CRD > 1.1);
+      const below    = sorted.filter(d => d.CRD < 0.85);
+      const ok       = sorted.filter(d => d.CRD >= 0.85 && d.CRD <= 1.1);
+
+      let html = '';
+
+      // Panorama geral
+      html += '<p class="narrative">A EECA conta com <strong>' + total + ' RADOC(s) carregados</strong> distribuídos em '
+        + sorted.length + ' departamentos. A capacidade didática prevista total da unidade é de <strong>'
+        + unitCDPD + 'h/ano</strong>, e o total realizado foi de <strong>' + unitCDRD + 'h/ano</strong>, '
+        + 'resultando em um CRD médio da unidade de <strong>' + unitCRD.toFixed(3) + '</strong>. '
+        + (above.length ? above.length + ' departamento(s) operam acima da capacidade prevista (CRD > 1,10); ' : '')
+        + (below.length ? below.length + ' departamento(s) operam abaixo (CRD < 0,85); ' : '')
+        + ok.length + ' departamento(s) estão no intervalo de equilíbrio (0,85 ≤ CRD ≤ 1,10).</p>';
+
+      // Per department
+      sorted.forEach(d => {
+        const delta = d.CDRD - d.CDPD;
+        const absDelta = Math.abs(delta);
+        const avgHd = Math.round(d.CDPD / 32 / d.NDD * 100) / 100;
+        const avgPAE = Math.round(d.profs.reduce((s,p) => s+p.pae, 0) / d.NDD);
+        const sit    = d.CRD > 1.1 ? 'alert-hi' : d.CRD < 0.85 ? 'alert-lo' : 'alert-ok';
+        const icon   = d.CRD > 1.1 ? '⚠' : d.CRD < 0.85 ? '⬇' : '✓';
+        const sitTxt = d.CRD > 1.1 ? 'Acima da capacidade prevista' : d.CRD < 0.85 ? 'Abaixo da capacidade prevista' : 'Dentro do equilíbrio';
+
+        // Who has 0 teaching hours
+        const semAulas = d.profs.filter(p => p.cdrd === 0);
+
+        html += '<div class="alert-box ' + sit + '">';
+        html += '<span class="dot" style="background:' + d.color + '"></span>';
+        html += '<strong>' + d.label + '</strong> — CRD = ' + d.CRD.toFixed(3) + ' | ' + icon + ' ' + sitTxt;
+        html += '</div>';
+        html += '<p class="narrative">';
+        html += 'O departamento conta com <strong>' + d.NDD + ' docente(s)</strong>, capacidade didática prevista de '
+          + '<strong>' + d.CDPD + 'h/ano</strong> e realizou <strong>' + d.CDRD + 'h/ano</strong>. '
+          + 'A disponibilidade semanal média estimada pelo modelo é de <strong>' + avgHd.toFixed(1) + 'h/sem</strong> '
+          + '(PAE médio: ' + avgPAE + ' pts). ';
+
+        if (d.CRD > 1.1) {
+          html += 'O departamento está ensinando <strong>' + absDelta + 'h/ano acima</strong> do que o modelo prevê como capacidade disponível. '
+            + 'Isso indica que seus docentes estão absorvendo carga de ensino além do que a sua produção acadêmica permitiria de forma sustentável. '
+            + 'Quanto maior a produção, menor o Hd previsto — e o CRD elevado sinaliza que essas horas extras podem estar comprometendo tempo de pesquisa/extensão. '
+            + '<strong>Ação recomendada:</strong> priorizar este departamento no diálogo sobre redistribuição de disciplinas ou reforço de quadro.';
+        } else if (d.CRD < 0.85) {
+          html += 'O departamento está ensinando <strong>' + absDelta + 'h/ano abaixo</strong> do que o modelo prevê como capacidade disponível. '
+            + 'A capacidade ociosa pode indicar que disciplinas sob responsabilidade deste departamento foram assumidas por outros, '
+            + 'ou que há oportunidade para ampliar a oferta de componentes curriculares sem sobrecarregar os docentes. '
+            + '<strong>Ação recomendada:</strong> avaliar absorção de disciplinas transversais ou eletivas atualmente em outros departamentos.';
+        } else {
+          html += 'O departamento opera em equilíbrio saudável entre carga realizada e capacidade prevista — a diferença é de apenas '
+            + (delta >= 0 ? '+' : '') + delta + 'h/ano (' + (delta >= 0 ? 'acima' : 'abaixo') + '). '
+            + '<strong>Referência positiva</strong> para o planejamento da unidade.';
+        }
+
+        if (semAulas.length) {
+          html += ' <em>Nota: ' + semAulas.length + ' docente(s) não apresentaram horas de ensino no período analisado ('
+            + semAulas.map(p => p.name.split(' ')[0]).join(', ')
+            + ') — verificar afastamentos ou situações especiais.</em>';
+        }
+        html += '</p>';
+      });
+
+      // Strategic synthesis table
+      html += '<h3>Síntese Estratégica para o CD/EECA</h3>';
+      html += '<table class="synth-table"><thead><tr>'
+        + '<th>Departamento</th><th>CRD</th><th>Situação</th><th>Delta (h/ano)</th><th>Ação recomendada pelas Diretrizes</th>'
+        + '</tr></thead><tbody>';
+      sorted.forEach(d => {
+        const delta  = d.CDRD - d.CDPD;
+        const cls    = d.CRD > 1.1 ? 'crd-hi' : d.CRD < 0.85 ? 'crd-lo' : 'crd-ok';
+        const sit    = d.CRD > 1.1 ? '⚠ Sobrecarga' : d.CRD < 0.85 ? '⬇ Ociosidade' : '✓ Equilíbrio';
+        const acao   = d.CRD > 1.1 ? 'Redistribuição ou reforço de vagas; diálogo prioritário com a chefia'
+                     : d.CRD < 0.85 ? 'Avaliar absorção de disciplinas transversais ou eletivas'
+                     : 'Manter distribuição atual como referência de equilíbrio';
+        html += '<tr><td><span class="dot" style="background:' + d.color + '"></span>' + d.label + '</td>'
+          + '<td class="num ' + cls + '">' + d.CRD.toFixed(3) + '</td>'
+          + '<td class="' + cls + '">' + sit + '</td>'
+          + '<td class="num">' + (delta >= 0 ? '+' : '') + delta + 'h</td>'
+          + '<td>' + acao + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      return html;
+    }
+
+    // ── Dicionário técnico ─────────────────────────────────────
+    const DICT_CSS = CSS;
+    const dictHtml = `
+<h2>Dicionário Técnico das Colunas</h2>
+
+<div class="dict-entry">
+  <div class="term">Produção Acadêmica sem Ensino — PAE (pts)</div>
+  <div class="formula">PAE = Produção Intelectual + Pesquisa + Extensão + Administração + Representação + Outras</div>
+  <div class="interp">
+    <strong>O que é:</strong> a pontuação anual do docente excluindo <em>todas</em> as atividades da Seção I do RADOC 
+    (aulas, orientações como I-3 e projetos de ensino). Mede a contribuição acadêmica além da sala de aula.<br>
+    <strong>Interpretação:</strong> PAE alto = professor com alta produção de pesquisa/extensão/gestão. 
+    O PAE é o insumo central para calcular o Hd — quanto maior o PAE, menos horas de ensino são esperadas pelo modelo.
+  </div>
+</div>
+
+<div class="dict-entry">
+  <div class="term">Horas Aula Totais no RADOC (h/ano)</div>
+  <div class="formula">Horas RADOC = Ag_total + Ass_stricto + Ass_lato (toda Seção I-1 e I-2)</div>
+  <div class="interp">
+    <strong>O que é:</strong> o total de horas-aula registradas no RADOC para o docente, 
+    incluindo graduação, pós-graduação stricto sensu E lato sensu (especialização). 
+    Não entra no cálculo do CDRD — serve apenas como referência informativa.<br>
+    <strong>Interpretação:</strong> permite comparar o que o professor declarou no RADOC 
+    com o que o modelo contabiliza como "realizado" (que exclui lato sensu).
+  </div>
+</div>
+
+<div class="dict-entry">
+  <div class="term">Disponibilidade Semanal Estimada para Ensino — Hd (h/sem)</div>
+  <div class="formula">
+    DE/40H: Hd = 16 − 8 × (PAE − LI40) / (LS40 − LI40), limitado ao intervalo [8h, 16h]<br>
+    20H: Hd = 10 − 2 × (PAE − LI20) / (LS20 − LI20), limitado ao intervalo [8h, 10h]<br>
+    LI40 = (8/12) × MPAE40 &nbsp;|&nbsp; LS40 = (16/12) × MPAE40<br>
+    LI20 = (8/12) × MPAE20 &nbsp;|&nbsp; LS20 = (10/12) × MPAE20
+  </div>
+  <div class="interp">
+    <strong>O que é:</strong> o número de horas-aula semanais que o modelo das Diretrizes atribui ao docente 
+    como capacidade disponível para ensino, calculado de forma inversamente proporcional à sua produção acadêmica (PAE).<br>
+    <strong>Lógica:</strong> professores com alta produção (PAE ≥ LS) recebem Hd = 8h/sem (mínimo LDB). 
+    Professores com baixa produção (PAE ≤ LI) recebem Hd = 16h/sem (máximo). Valores intermediários são interpolados linearmente.<br>
+    <strong>Importante:</strong> Hd não é uma meta de ensino — é a disponibilidade estimada pelo modelo para fins de diagnóstico.
+  </div>
+</div>
+
+<div class="dict-entry">
+  <div class="term">Horas de Graduação Realizadas — Ag (h/ano)</div>
+  <div class="formula">Ag = Σ(pontos I-1-1 + pontos I-1-2) × 32/10</div>
+  <div class="interp">
+    <strong>O que é:</strong> total anual de horas-aula de graduação ministradas pelo docente (presencial + EAD), 
+    extraídas diretamente do RADOC (I-1-1: presencial; I-1-2: a distância).<br>
+    <strong>Conversão:</strong> o RADOC registra pontos, onde 1 ponto = 1 hora × (10/32). 
+    Para recuperar as horas: horas = pontos × 32/10.<br>
+    <strong>Interpretação:</strong> carga de ensino efetivamente cumprida em cursos de graduação no ano de referência.
+  </div>
+</div>
+
+<div class="dict-entry">
+  <div class="term">Horas de Pós-Graduação Stricto Sensu — Ass (h/ano)</div>
+  <div class="formula">Ass = Σ(pontos I-2-1) × 32/10 &nbsp;&nbsp; [I-2-2 lato sensu EXCLUÍDO]</div>
+  <div class="interp">
+    <strong>O que é:</strong> total anual de horas-aula em pós-graduação stricto sensu (mestrado/doutorado), 
+    código I-2-1 do RADOC. O lato sensu (especialização, código I-2-2) é <strong>excluído</strong> porque 
+    esses cursos possuem remuneração adicional ao docente, não configurando ensino regular da unidade.<br>
+    <strong>Interpretação:</strong> contribuição do docente ao stricto sensu da EECA ou de outros programas sem remuneração.
+  </div>
+</div>
+
+<div class="dict-entry">
+  <div class="term">Total de Ensino Realizado — CDRD individual (h/ano)</div>
+  <div class="formula">CDRD individual = Ag + Ass</div>
+  <div class="interp">
+    <strong>O que é:</strong> contribuição individual do docente para a Capacidade Didática Realizada do departamento. 
+    Soma das horas de graduação e stricto sensu (lato excluído).<br>
+    <strong>Interpretação:</strong> representa o "peso" de cada professor no CDRD do departamento. 
+    Docentes com CDRD = 0 não registraram horas de ensino no período — situação que demanda verificação 
+    (afastamento, licença, situação especial).
+  </div>
+</div>
+
+<div class="dict-entry">
+  <div class="term">Capacidade Didática Prevista — CDPD (h/ano)</div>
+  <div class="formula">CDPD = 32 semanas × Σ(Hd de cada docente do departamento)</div>
+  <div class="interp">
+    <strong>O que é:</strong> estimativa anual da capacidade total de ensino do departamento, 
+    somando as disponibilidades semanais de todos os seus docentes ao longo das 32 semanas letivas.<br>
+    <strong>Interpretação:</strong> é o denominador do CRD. Departamentos com professores de alta produção 
+    têm CDPD menor (Hd próximo de 8h); departamentos com produção acadêmica mais baixa têm CDPD maior.
+  </div>
+</div>
+
+<div class="dict-entry">
+  <div class="term">Capacidade Didática Realizada — CDRD (h/ano)</div>
+  <div class="formula">CDRD = Σ(Ag + Ass) de todos os docentes do departamento</div>
+  <div class="interp">
+    <strong>O que é:</strong> total de horas de ensino (graduação + stricto sensu, sem remuneração adicional) 
+    efetivamente realizadas por todos os docentes do departamento no ano de referência.<br>
+    <strong>Interpretação:</strong> é o numerador do CRD. Reflete a carga real de ensino assumida pelo departamento.
+  </div>
+</div>
+
+<div class="dict-entry">
+  <div class="term">Capacidade Relativa do Departamento — CRD</div>
+  <div class="formula">CRD = CDRD ÷ CDPD</div>
+  <div class="interp">
+    <strong>O que é:</strong> razão entre o ensino realizado e a capacidade disponível estimada pelo modelo. 
+    É o indicador central das Diretrizes EECA para diagnóstico de equilíbrio.<br>
+    <strong>Escala de interpretação:</strong><br>
+    &nbsp;&nbsp;• CRD &lt; 0,85 → capacidade ociosa (departamento está ensinando menos do que poderia absorver)<br>
+    &nbsp;&nbsp;• 0,85 ≤ CRD ≤ 1,10 → equilíbrio saudável<br>
+    &nbsp;&nbsp;• CRD &gt; 1,10 → sobrecarga (departamento está ensinando além da capacidade prevista)<br>
+    <strong>Atenção:</strong> o CRD é um instrumento de <em>diagnóstico</em>, não de avaliação. 
+    Valores fora do intervalo de equilíbrio são pontos de partida para o diálogo entre a Comissão gestora 
+    e as Chefias de Departamento, conforme Art. 7º §2º das Diretrizes.
+  </div>
+</div>`;
+
+    // ── Build full HTML report ─────────────────────────────────
     let html = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">'
-      + '<title>Relatório CR — EECA</title><style>'
-      + 'body{font-family:Arial,sans-serif;font-size:10pt;color:#111;margin:0;padding:0}'
-      + '.page{max-width:800px;margin:0 auto;padding:30px 40px}'
-      + 'h1{font-size:13pt;font-weight:700;color:#1a4b8c;margin:0 0 4px 0}'
-      + 'h2{font-size:11pt;font-weight:700;color:#1a4b8c;margin:16px 0 6px 0;border-bottom:1px solid #ccc;padding-bottom:3px}'
-      + 'table{width:100%;border-collapse:collapse;font-size:9.5pt;margin-bottom:12px}'
-      + 'th{background:#1a4b8c;color:#fff;padding:5px 8px;text-align:left}'
-      + 'td{padding:5px 8px;border:1px solid #ddd}'
-      + 'tr:nth-child(even) td{background:#f9f9f9}'
-      + '.num{text-align:right;font-family:monospace}'
-      + '.crd-hi{background:#fce8e8;color:#b00}.crd-ok{background:#e8f5ea;color:#1a6e2a}.crd-lo{background:#fff3e0;color:#7a4a00}'
-      + '.param-box{background:#f5f5f5;border:1px solid #ddd;border-radius:4px;padding:10px 14px;font-size:9.5pt;margin-bottom:12px}'
-      + '.param-box b{color:#1a4b8c}'
-      + '@media print{body{font-size:9pt}}</style></head><body><div class="page">';
+      + '<title>Relatório CR — EECA/UFG</title><style>' + CSS + '</style></head><body><div class="page">';
 
     html += '<div style="text-align:center;margin-bottom:16px">'
       + '<div style="font-size:11pt;font-weight:700;color:#1a4b8c">UNIVERSIDADE FEDERAL DE GOIÁS — ESCOLA DE ENGENHARIA CIVIL E AMBIENTAL</div>'
       + '<div style="font-size:10pt;font-weight:700;margin-top:4px">CAPACIDADE RELATIVA DOS DEPARTAMENTOS — Diretrizes Internas EECA</div>'
       + '<div style="font-size:9pt;color:#555;margin-top:2px">Gerado em: ' + new Date().toLocaleString('pt-BR') + '</div></div>';
 
-    html += '<h2>Parâmetros da Análise</h2>';
+    // Parameters box
+    html += '<h2>1. Parâmetros da Análise</h2>';
     html += '<div class="param-box">'
-      + '<b>MPAE40</b>: ' + mpae40 + ' pts &nbsp;|&nbsp; '
-      + '<b>LI40</b>: ' + LI40 + ' pts &nbsp;|&nbsp; <b>LS40</b>: ' + LS40 + ' pts<br>'
-      + '<b>MPAE20</b>: ' + (mpae20||'não definido') + ' pts &nbsp;|&nbsp; '
-      + '<b>LI20</b>: ' + LI20 + ' pts &nbsp;|&nbsp; <b>LS20</b>: ' + LS20 + ' pts<br>'
-      + '<b>Semanas letivas</b>: 32 &nbsp;|&nbsp; '
-      + '<b>Horas realizadas</b>: apenas graduação + pós-grad. stricto sensu (lato sensu excluído)<br>'
+      + '<b>MPAE40</b>: ' + mpae40 + ' pts &nbsp;|&nbsp; <b>LI40</b>: ' + LI40 + ' pts &nbsp;|&nbsp; <b>LS40</b>: ' + LS40 + ' pts<br>'
+      + '<b>MPAE20</b>: ' + (mpae20||'não definido') + ' pts &nbsp;|&nbsp; <b>LI20</b>: ' + LI20 + ' pts &nbsp;|&nbsp; <b>LS20</b>: ' + LS20 + ' pts<br>'
+      + '<b>Semanas letivas</b>: 32 &nbsp;|&nbsp; <b>Horas realizadas</b>: graduação + pós-grad. stricto sensu (lato sensu excluído)<br>'
       + '<b>Total de RADOCs carregados</b>: ' + evaluations.length
       + '</div>';
 
-    html += '<h2>Resumo por Departamento (ordenado por CRD crescente)</h2>';
+    // Summary table
+    html += '<h2>2. Resumo por Departamento (ordenado por CRD crescente)</h2>';
     html += '<table><thead><tr>'
-      + '<th>Departamento</th><th class="num">NDD</th>'
-      + '<th class="num">CDPD (h/ano)</th><th class="num">CDRD (h/ano)</th>'
+      + '<th>Departamento</th><th class="num">Nº Docentes</th>'
+      + '<th class="num">Cap. Prevista CDPD (h/ano)</th>'
+      + '<th class="num">Cap. Realizada CDRD (h/ano)</th>'
       + '<th class="num">CRD</th><th>Situação</th>'
       + '</tr></thead><tbody>';
     const sortedAsc = [...crData].sort((a,b) => a.CRD - b.CRD);
     sortedAsc.forEach(d => {
-      const sit = d.CRD > 1.1 ? ['crd-hi','⚠ Acima da capacidade'] :
-                  d.CRD < 0.85 ? ['crd-lo','⬇ Abaixo da capacidade'] :
-                  ['crd-ok','✓ Dentro do esperado'];
-      html += '<tr><td><span style="display:inline-block;width:8px;height:8px;background:' + d.color + ';border-radius:50%;margin-right:5px"></span>' + d.label + '</td>'
+      const cls = d.CRD > 1.1 ? 'crd-hi' : d.CRD < 0.85 ? 'crd-lo' : 'crd-ok';
+      const sit = d.CRD > 1.1 ? '⚠ Sobrecarga' : d.CRD < 0.85 ? '⬇ Cap. Ociosa' : '✓ Equilíbrio';
+      html += '<tr><td><span class="dot" style="background:' + d.color + '"></span>' + d.label + '</td>'
         + '<td class="num">' + d.NDD + '</td>'
         + '<td class="num">' + d.CDPD + '</td>'
         + '<td class="num">' + d.CDRD + '</td>'
-        + '<td class="num ' + sit[0] + '"><strong>' + d.CRD.toFixed(3) + '</strong></td>'
-        + '<td class="' + sit[0] + '">' + sit[1] + '</td></tr>';
+        + '<td class="num ' + cls + '">' + d.CRD.toFixed(3) + '</td>'
+        + '<td class="' + cls + '">' + sit + '</td></tr>';
     });
     html += '</tbody></table>';
 
-    // Detail per professor
-    html += '<h2>Detalhamento por Docente</h2>';
+    // Detail per department — with new column names
+    html += '<h2>3. Detalhamento por Docente</h2>';
+    html += '<p style="font-size:8.5pt;color:#666;margin:-4px 0 10px 0">Horas calculadas a partir dos pontos do RADOC. '
+      + 'Horas RADOC = total registrado (incluindo lato sensu). '
+      + 'Graduação Realizada e Stricto Sensu excluem lato sensu remunerado.</p>';
+
     sortedAsc.forEach(d => {
-      html += '<h3 style="font-size:10.5pt;margin:12px 0 4px 0;color:#1a4b8c">' + d.label + '</h3>';
+      html += '<div class="dept-header"><span class="dot" style="background:' + d.color + '"></span>' + d.label + '</div>';
       html += '<table><thead><tr>'
-        + '<th>Docente</th><th>Regime</th>'
-        + '<th class="num">PAE (pts)</th><th class="num">Hd (h/sem)</th>'
-        + '<th class="num">Ag (h/ano)</th><th class="num">Ass (h/ano)</th>'
-        + '<th class="num">CDRD ind. (h/ano)</th>'
+        + '<th>Docente</th>'
+        + '<th>Regime</th>'
+        + '<th class="num">Produção Acadêmica sem Ensino (pts)</th>'
+        + '<th class="num">Horas Aula Totais RADOC (h/ano)</th>'
+        + '<th class="num">Disponibilidade Semanal Estimada (h/sem)</th>'
+        + '<th class="num">Graduação Realizada (h/ano)</th>'
+        + '<th class="num">Pós-Grad. Stricto Sensu (h/ano)</th>'
+        + '<th class="num">Total Ensino Realizado (h/ano)</th>'
         + '</tr></thead><tbody>';
       const profs = [...d.profs].sort((a,b) => a.hd - b.hd);
       profs.forEach(p => {
-        html += '<tr><td>' + p.name + '</td><td>' + p.regime + '</td>'
+        const zeroAlert = p.cdrd === 0 ? ' style="color:#b00"' : '';
+        html += '<tr><td' + zeroAlert + '>' + p.name + '</td>'
+          + '<td>' + p.regime + '</td>'
           + '<td class="num">' + p.pae.toFixed(1) + '</td>'
+          + '<td class="num">' + (p.horasRadoc||0).toFixed(1) + '</td>'
           + '<td class="num">' + p.hd.toFixed(2) + '</td>'
           + '<td class="num">' + p.Ag.toFixed(1) + '</td>'
           + '<td class="num">' + p.Ass.toFixed(1) + '</td>'
-          + '<td class="num">' + p.cdrd.toFixed(1) + '</td></tr>';
+          + '<td class="num' + (p.cdrd===0?' crd-hi':'') + '">' + p.cdrd.toFixed(1) + '</td></tr>';
       });
-      // Subtotal
-      const sumHd  = profs.reduce((s,p) => s+p.hd, 0);
+      // Subtotals
+      const sumHd   = profs.reduce((s,p) => s+p.hd, 0);
       const sumCdrd = profs.reduce((s,p) => s+p.cdrd, 0);
-      html += '<tr style="font-weight:700;background:#eee">'
-        + '<td colspan="3">Subtotal ' + d.label + '</td>'
+      const sumRadoc= profs.reduce((s,p) => s+(p.horasRadoc||0), 0);
+      html += '<tr style="font-weight:700;background:#dce8f0">'
+        + '<td colspan="2">Subtotal — ' + d.label + ' (' + d.NDD + ' docentes)</td>'
+        + '<td class="num">—</td>'
+        + '<td class="num">' + sumRadoc.toFixed(1) + '</td>'
         + '<td class="num">' + sumHd.toFixed(2) + '</td>'
         + '<td class="num">—</td><td class="num">—</td>'
         + '<td class="num">' + sumCdrd.toFixed(1) + '</td></tr>';
       html += '</tbody></table>';
     });
 
+    // Automated narrative analysis
+    html += '<h2>4. Análise Diagnóstica Automatizada</h2>';
+    html += generateNarrative(crData);
+
+    // Technical dictionary
+    html += '<h2>5. Dicionário Técnico das Variáveis</h2>';
+    html += dictHtml;
+
+    html += '<hr style="margin:20px 0;border-color:#ddd">';
+    html += '<p style="font-size:8.5pt;color:#888;text-align:center">'
+      + 'Este relatório foi gerado automaticamente pelo SICAD Avaliador — EECA/UFG. '
+      + 'Os resultados constituem diagnóstico para fins de planejamento estratégico, '
+      + 'conforme Art. 2º e Art. 7º §2º das Diretrizes Internas EECA. '
+      + 'Dados baseados nos RADOCs carregados no sistema.</p>';
+
     html += '</div>'
-      + '<div style="text-align:center;padding:20px" class="no-print">'
+      + '<div style="text-align:center;padding:16px" class="no-print">'
       + '<button onclick="window.print()" style="padding:8px 24px;font-size:12pt;cursor:pointer">Imprimir / Salvar PDF</button>'
       + '</div></body></html>';
 
