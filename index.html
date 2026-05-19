@@ -5646,11 +5646,13 @@ function calcTeachingHours(details) {
       horasLato += pts * 32 / 10;          // lato sensu: excluído do CDRD, mas registrado
     }
   });
+  const total = horasGrad + horasStricto + horasLato;
   return {
-    Ag:         Math.round(horasGrad    * 10) / 10,
-    Ass:        Math.round(horasStricto * 10) / 10,
-    horasLato:  Math.round(horasLato    * 10) / 10,
-    horasRadoc: Math.round((horasGrad + horasStricto + horasLato) * 10) / 10,
+    Ag:             Math.round(horasGrad    * 10) / 10,
+    Ass:            Math.round(horasStricto * 10) / 10,
+    horasLato:      Math.round(horasLato    * 10) / 10,
+    horasRadoc:     Math.round(total        * 10) / 10,
+    horasRadocSem:  Math.round(total / 32   * 100) / 100,  // horas semanais
   };
 }
 
@@ -5665,13 +5667,14 @@ function computeCR(evaluations, mpae40, mpae20) {
     if (!byArea[ev.area]) return;
     const pae  = calcPAE(ev.scores);
     const hd   = calcHd(pae, ev.regime, mpae40, mpae20);
-    const { Ag, Ass, horasRadoc } = calcTeachingHours(ev.scores.details);
+    const { Ag, Ass, horasRadoc, horasRadocSem } = calcTeachingHours(ev.scores.details);
     byArea[ev.area].profs.push({
       name: ev.name,
       regime: ev.regime,
       pae,
       hd: Math.round(hd * 100) / 100,
       horasRadoc,
+      horasRadocSem,
       Ag,
       Ass,
       cdrd: Math.round((Ag + Ass) * 10) / 10,
@@ -5784,6 +5787,12 @@ function CRDModule({ evaluations, thresholdDE, threshold20, onClose }) {
   // ── Relatório HTML ────────────────────────────────────────────
   function gerarRelatorioCR() {
     if (!crData) return;
+    // Capture dashboard charts as images
+    function captureCRChart(ref) {
+      try { return ref.current ? ref.current.canvas.toDataURL('image/png') : null; } catch(e) { return null; }
+    }
+    const imgCRD = captureCRChart(crdChart);
+    const imgHD  = captureCRChart(hdChart);
     const m20  = mpae20 || mpae40;
     const LI40 = mpae40 > 0 ? Math.round((8/12)  * mpae40 * 10) / 10 : '—';
     const LS40 = mpae40 > 0 ? Math.round((16/12) * mpae40 * 10) / 10 : '—';
@@ -5932,12 +5941,12 @@ tr:nth-child(even) td{background:#f9f9f9}
 </div>
 
 <div class="dict-entry">
-  <div class="term">Horas Aula Totais no RADOC (h/ano)</div>
+  <div class="term">H-A Semanais Totais no RADOC — (h/sem)</div>
   <div class="formula">Horas RADOC = Ag_total + Ass_stricto + Ass_lato (toda Seção I-1 e I-2)</div>
   <div class="interp">
     <strong>O que é:</strong> o total de horas-aula registradas no RADOC para o docente, 
     incluindo graduação, pós-graduação stricto sensu E lato sensu (especialização). 
-    Não entra no cálculo do CDRD — serve apenas como referência informativa.<br>
+Não entra no cálculo do CDRD — serve como referência comparativa com o Hd.<br>
     <strong>Interpretação:</strong> permite comparar o que o professor declarou no RADOC 
     com o que o modelo contabiliza como "realizado" (que exclui lato sensu).
   </div>
@@ -6071,6 +6080,24 @@ tr:nth-child(even) td{background:#f9f9f9}
     });
     html += '</tbody></table>';
 
+    // Charts section under summary table
+    if (imgCRD || imgHD) {
+      html += '<div style="display:flex;gap:20px;margin:14px 0 18px 0;flex-wrap:wrap">';
+      if (imgCRD) {
+        html += '<div style="flex:1;min-width:280px">'
+          + '<div style="font-size:9.5pt;font-weight:700;color:#1a4b8c;margin-bottom:4px">CRD por Departamento</div>'
+          + '<img src="' + imgCRD + '" style="width:100%;height:auto;border:1px solid #ddd;border-radius:4px">'
+          + '</div>';
+      }
+      if (imgHD) {
+        html += '<div style="flex:1;min-width:280px">'
+          + '<div style="font-size:9.5pt;font-weight:700;color:#1a4b8c;margin-bottom:4px">Horas Aula: Realizadas vs Capacidade Prevista</div>'
+          + '<img src="' + imgHD + '" style="width:100%;height:auto;border:1px solid #ddd;border-radius:4px">'
+          + '</div>';
+      }
+      html += '</div>';
+    }
+
     // Detail per department — with new column names
     html += '<h2>3. Detalhamento por Docente</h2>';
     html += '<p style="font-size:8.5pt;color:#666;margin:-4px 0 10px 0">Horas calculadas a partir dos pontos do RADOC. '
@@ -6083,7 +6110,7 @@ tr:nth-child(even) td{background:#f9f9f9}
         + '<th>Docente</th>'
         + '<th>Regime</th>'
         + '<th class="num">Produção Acadêmica sem Ensino (pts)</th>'
-        + '<th class="num">Horas Aula Totais RADOC (h/ano)</th>'
+        + '<th class="num">H-A Semanais RADOC (h/sem)</th>'
         + '<th class="num">Disponibilidade Semanal Estimada (h/sem)</th>'
         + '<th class="num">Graduação Realizada (h/ano)</th>'
         + '<th class="num">Pós-Grad. Stricto Sensu (h/ano)</th>'
@@ -6095,7 +6122,7 @@ tr:nth-child(even) td{background:#f9f9f9}
         html += '<tr><td' + zeroAlert + '>' + p.name + '</td>'
           + '<td>' + p.regime + '</td>'
           + '<td class="num">' + p.pae.toFixed(1) + '</td>'
-          + '<td class="num">' + (p.horasRadoc||0).toFixed(1) + '</td>'
+          + '<td class="num">' + (p.horasRadocSem||0).toFixed(2) + '</td>'
           + '<td class="num">' + p.hd.toFixed(2) + '</td>'
           + '<td class="num">' + p.Ag.toFixed(1) + '</td>'
           + '<td class="num">' + p.Ass.toFixed(1) + '</td>'
@@ -6104,11 +6131,12 @@ tr:nth-child(even) td{background:#f9f9f9}
       // Subtotals
       const sumHd   = profs.reduce((s,p) => s+p.hd, 0);
       const sumCdrd = profs.reduce((s,p) => s+p.cdrd, 0);
-      const sumRadoc= profs.reduce((s,p) => s+(p.horasRadoc||0), 0);
+      const sumRadocSem = Math.round(profs.reduce((s,p) => s+(p.horasRadocSem||0), 0) * 100) / 100;
+      const sumRadoc= Math.round(profs.reduce((s,p) => s+(p.horasRadoc||0), 0) * 10) / 10;
       html += '<tr style="font-weight:700;background:#dce8f0">'
         + '<td colspan="2">Subtotal — ' + d.label + ' (' + d.NDD + ' docentes)</td>'
         + '<td class="num">—</td>'
-        + '<td class="num">' + sumRadoc.toFixed(1) + '</td>'
+        + '<td class="num">' + sumRadocSem.toFixed(2) + '</td>'
         + '<td class="num">' + sumHd.toFixed(2) + '</td>'
         + '<td class="num">—</td><td class="num">—</td>'
         + '<td class="num">' + sumCdrd.toFixed(1) + '</td></tr>';
