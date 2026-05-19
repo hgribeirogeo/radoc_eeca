@@ -5118,7 +5118,8 @@ table td, table th { border: 1px solid #999; padding: 4px 8px; }
       }
       pg += '</div>';
 
-      pg += '<p style="font-size:9pt;margin-top:24px;text-align:justify">' + parecerTexto + '</p>';
+      pg += '<p contenteditable="true" style="font-size:9pt;margin-top:24px;text-align:justify;border:1px dashed #b5a898;border-radius:3px;padding:6px 8px;outline:none;cursor:text" title="Clique para editar">' + parecerTexto + '</p>'
+           + '<p class="no-print" style="font-size:8pt;color:#9a968d;margin:2px 0 6px 0">✎ Clique no texto acima para editar antes de imprimir.</p>';
 
       pg += '<div class="verd ' + verdadeiroVerd + '">' + verdMsg + '</div>';
 
