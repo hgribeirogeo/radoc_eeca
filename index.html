@@ -2738,81 +2738,8 @@ ${reviewManualHtml}
 
       const datasets = [];
 
-      // ── Approval boundary (drawn first so it appears behind dots) ──
-      if (lineData.length) {
-        datasets.push({
-          label: 'Fronteira de aprovação',
-          data: lineData,
-          type: 'line',
-          borderColor: '#1a4b8c',
-          borderWidth: 3,
-          pointRadius: 0,
-          fill: false,
-          tension: 0,
-          order: 99,
-          z: 20,
-        });
-      }
-
-      // ── Reference dashed lines via extra line datasets ──
-      if (bnd) {
-        // Horizontal guide at hasTop
-        datasets.push({
-          label: null,
-          data: [{ x: 0, y: bnd.hasTop }, { x: maxX, y: bnd.hasTop }],
-          type: 'line',
-          borderColor: '#93aad4',
-          borderWidth: 1,
-          borderDash: [4, 4],
-          pointRadius: 0,
-          fill: false,
-          tension: 0,
-          order: 3,
-          z: -1,
-        });
-        // Horizontal guide at hasBot
-        datasets.push({
-          label: null,
-          data: [{ x: 0, y: bnd.hasBot }, { x: maxX, y: bnd.hasBot }],
-          type: 'line',
-          borderColor: '#93aad4',
-          borderWidth: 1,
-          borderDash: [4, 4],
-          pointRadius: 0,
-          fill: false,
-          tension: 0,
-          order: 3,
-          z: -1,
-        });
-        // Vertical guide at kneeLeft
-        datasets.push({
-          label: null,
-          data: [{ x: bnd.kneeLeft, y: 0 }, { x: bnd.kneeLeft, y: bnd.hasTop }],
-          type: 'line',
-          borderColor: '#e06060',
-          borderWidth: 1,
-          borderDash: [4, 4],
-          pointRadius: 0,
-          fill: false,
-          tension: 0,
-          order: 3,
-          z: -1,
-        });
-        // Vertical guide at kneeRight
-        datasets.push({
-          label: null,
-          data: [{ x: bnd.kneeRight, y: 0 }, { x: bnd.kneeRight, y: bnd.hasBot }],
-          type: 'line',
-          borderColor: '#e06060',
-          borderWidth: 1,
-          borderDash: [4, 4],
-          pointRadius: 0,
-          fill: false,
-          tension: 0,
-          order: 3,
-          z: -1,
-        });
-      }
+      // ── Boundary line and guide lines are drawn by the sicad-boundary plugin ──
+      // (using afterDraw + getPixelForValue for pixel-perfect alignment with gridlines)
 
       // ── Professor scatter — coloured by area, shape by status ──
       // circle = acima da reta  |  diamond (rectRot) = abaixo
@@ -2856,17 +2783,67 @@ ${reviewManualHtml}
 
       if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
 
-      // ── Axis ranges ─── limites fixos por regime (CONSUNI) ──
-      // DE/40H: inferior=8h, superior=16h → yMax=18 para folga visual
-      // 20H:    inferior=8h, superior=10h → yMax=12 para folga visual
-      const yHardTop = isDE ? 16 : 10;   // limite superior do regime
-      const yHardBot = 8;                 // limite inferior (LDB) para ambos
-      const yMax     = yHardTop + 2;      // folga visual acima
-      const xMax   = Math.ceil(maxX * 1.05 / 50) * 50;
+      // ── Axis ranges — fixos por regime (CONSUNI 18/2017) ──
+      const yHardTop = isDE ? 16 : 10;
+      const yHardBot = 8;
+      const yMax     = yHardTop + 2;
+      const xMax     = Math.ceil(maxX * 1.05 / 50) * 50;
+
+      // ── Plugin: desenha fronteira e guias APÓS o chart renderizar ──
+      // Usa getPixelForValue() para garantir alinhamento pixel-perfeito com os eixos.
+      const boundaryPlugin = bnd ? {
+        id: 'sicad-boundary',
+        afterDraw(chart) {
+          const ctx  = chart.ctx;
+          const xSc  = chart.scales.x;
+          const ySc  = chart.scales.y;
+          if (!xSc || !ySc) return;
+
+          const px = v => xSc.getPixelForValue(v);
+          const py = v => ySc.getPixelForValue(v);
+
+          // ── Guias tracejadas horizontais (16h e 8h) ──
+          ctx.save();
+          ctx.setLineDash([5, 5]);
+          ctx.lineWidth = 1.2;
+          ctx.strokeStyle = '#93aad4';
+          [bnd.hasTop, bnd.hasBot].forEach(hv => {
+            const y0 = py(hv);
+            ctx.beginPath();
+            ctx.moveTo(px(0), y0);
+            ctx.lineTo(px(xMax), y0);
+            ctx.stroke();
+          });
+
+          // ── Guias tracejadas verticais (kneeLeft e kneeRight) ──
+          ctx.strokeStyle = '#e0a0a0';
+          [{ kx: bnd.kneeLeft, ky: bnd.hasTop }, { kx: bnd.kneeRight, ky: bnd.hasBot }]
+            .forEach(({ kx, ky }) => {
+              ctx.beginPath();
+              ctx.moveTo(px(kx), py(0));
+              ctx.lineTo(px(kx), py(ky));
+              ctx.stroke();
+            });
+
+          // ── Fronteira sólida em L ──
+          ctx.setLineDash([]);
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = '#1a4b8c';
+          ctx.lineJoin = 'round';
+          ctx.beginPath();
+          ctx.moveTo(px(0),             py(bnd.hasTop));
+          ctx.lineTo(px(bnd.kneeLeft),  py(bnd.hasTop));
+          ctx.lineTo(px(bnd.kneeRight), py(bnd.hasBot));
+          ctx.lineTo(px(xMax),          py(bnd.hasBot));
+          ctx.stroke();
+          ctx.restore();
+        }
+      } : null;
 
       chartRef.current = new Chart(canvasRef.current, {
         type: 'scatter',
         data: { datasets },
+        plugins: boundaryPlugin ? [boundaryPlugin] : [],
         options: {
           responsive: true,
           maintainAspectRatio: false,
@@ -2986,10 +2963,7 @@ ${reviewManualHtml}
       const maxX20 = xVals20.length ? Math.max(...xVals20, bnd20?bnd20.kneeRight*1.6:300, 80) : (bnd20?bnd20.kneeRight*1.8:300);
       const xMax20 = Math.ceil(maxX20*1.05/50)*50;
       const ds20 = [];
-      if (bnd20) ds20.push({ label:'Fronteira', type:'line', order:2,
-        data:[{x:0,y:bnd20.hasTop},{x:bnd20.kneeLeft,y:bnd20.hasTop},
-              {x:bnd20.kneeRight,y:bnd20.hasBot},{x:maxX20,y:bnd20.hasBot}],
-        borderColor:'#1a4b8c', borderWidth:2.5, pointRadius:0, fill:false, tension:0 });
+      // 20H boundary drawn by plugin — see bnd20Plugin below
       [...AREAS, {id:AREA_ALL, label:'Sem área', color:'#888'}].forEach(ar => {
         const apv = pts20.filter(p=>p.area===ar.id && p.status==='above');
         const rep = pts20.filter(p=>p.area===ar.id && p.status==='below');
@@ -3001,8 +2975,45 @@ ${reviewManualHtml}
           borderWidth:2, pointStyle:'circle', pointRadius:9, pointHoverRadius:11 });
       });
       if (chart20Ref.current) { chart20Ref.current.destroy(); chart20Ref.current = null; }
+      const bnd20Plugin = bnd20 ? {
+        id: 'sicad-boundary-20h',
+        afterDraw(chart) {
+          const ctx = chart.ctx;
+          const xSc = chart.scales.x;
+          const ySc = chart.scales.y;
+          if (!xSc || !ySc) return;
+          const px = v => xSc.getPixelForValue(v);
+          const py = v => ySc.getPixelForValue(v);
+          ctx.save();
+          // Guias tracejadas
+          ctx.setLineDash([5, 5]);
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = '#93aad4';
+          [bnd20.hasTop, bnd20.hasBot].forEach(hv => {
+            ctx.beginPath(); ctx.moveTo(px(0), py(hv)); ctx.lineTo(px(xMax20), py(hv)); ctx.stroke();
+          });
+          ctx.strokeStyle = '#e0a0a0';
+          [[bnd20.kneeLeft, bnd20.hasTop],[bnd20.kneeRight, bnd20.hasBot]].forEach(([kx,ky]) => {
+            ctx.beginPath(); ctx.moveTo(px(kx), py(0)); ctx.lineTo(px(kx), py(ky)); ctx.stroke();
+          });
+          // Fronteira sólida
+          ctx.setLineDash([]);
+          ctx.lineWidth = 2.5;
+          ctx.strokeStyle = '#1a4b8c';
+          ctx.lineJoin = 'round';
+          ctx.beginPath();
+          ctx.moveTo(px(0),              py(bnd20.hasTop));
+          ctx.lineTo(px(bnd20.kneeLeft), py(bnd20.hasTop));
+          ctx.lineTo(px(bnd20.kneeRight),py(bnd20.hasBot));
+          ctx.lineTo(px(xMax20),         py(bnd20.hasBot));
+          ctx.stroke();
+          ctx.restore();
+        }
+      } : null;
+
       chart20Ref.current = new Chart(canvas20Ref.current, {
         type:'scatter', data:{datasets:ds20},
+        plugins: bnd20Plugin ? [bnd20Plugin] : [],
         options:{ responsive:false, maintainAspectRatio:false,
           plugins:{
             legend:{position:'bottom',labels:{
