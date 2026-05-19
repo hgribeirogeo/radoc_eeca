@@ -1852,6 +1852,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('ENS');
   const [showSettings, setShowSettings] = useState(false);
   const [cadOpen, setCadOpen] = useState(false);
+  const [crdOpen, setCrdOpen] = useState(false);
   const [config, setConfig] = useState(loadConfig());
   const [syncStatus, setSyncStatus] = useState(null);
   const [areaFilter, setAreaFilter] = useState(AREA_ALL);
@@ -4141,6 +4142,7 @@ ${reviewManualHtml}
           ),
           e('button', { className:'btn btn-sm', onClick:handleSync }, '↑ Sync Gist'),
           e('button', { className:'btn btn-sm btn-primary', onClick:()=>setCadOpen(true), title:'Avaliação individual: Progressão, Promoção, Estágio Probatório' }, '📋 Avaliação CAD'),
+          e('button', { className:'btn btn-sm', onClick:()=>setCrdOpen(true), title:'Capacidade Relativa dos Departamentos — Diretrizes EECA', style:{background:'var(--green)',color:'#fff',borderColor:'var(--green)'} }, '📊 Distr. CR'),
           e('button', { className:'btn btn-sm', onClick:()=>setShowSettings(true) }, '⚙'),
         )
       )
@@ -4297,6 +4299,7 @@ ${reviewManualHtml}
     e('footer', null, 'SICAD Avaliador · Resolução CONSUNI 18/2017 · UFG'),
     showSettings && e(SettingsModal),
     cadOpen && e(CADEvalModule, { evaluations, onClose: () => setCadOpen(false) }),
+    crdOpen && e(CRDModule, { evaluations, thresholdDE, threshold20, onClose: () => setCrdOpen(false) }),
   );
 }
 
@@ -5583,6 +5586,390 @@ table td, table th { border: 1px solid #999; padding: 4px 8px; }
                 inc.met ? '✓ Sim' : (idx < 3 ? '⚠ Insuf.' : '✗ Não'))
             )
           )
+        )
+
+      ) // modal-body
+    ) // modal
+  ); // overlay
+}
+
+
+// ============================================================
+// CR MODULE — DIRETRIZES INTERNAS EECA: CAPACIDADE RELATIVA
+// ============================================================
+
+// ── Calcular PAE (excluindo Seção I completa) ─────────────────
+function calcPAE(scores) {
+  return Math.round(
+    ((scores.PRI||0) + (scores.PSQ||0) + (scores.EXT||0) +
+     (scores.ADM||0) + (scores.RPT||0) + (scores.OTR||0)) * 100) / 100;
+}
+
+// ── Calcular Hd (horas-aula disponíveis/semana) ───────────────
+// Fonte: Anexo I Diretrizes EECA, usando MPAE40 para ambos os regimes
+function calcHd(pae, regime, mpae40, mpae20) {
+  // LI/LS para DE/40H usam MPAE40; para 20H usam MPAE20 (Diretrizes EECA)
+  if (regime === '20H') {
+    const m = mpae20 || mpae40; // fallback para mpae40 se 20H não definido
+    if (!m || m <= 0) return 9;
+    const LI20 = (8/12)  * m;
+    const LS20 = (10/12) * m;
+    if (pae <= LI20) return 10;
+    if (pae >= LS20) return 8;
+    return 10 - 2 * (pae - LI20) / (LS20 - LI20);
+  } else {
+    if (!mpae40 || mpae40 <= 0) return 12;
+    const LI40 = (8/12)  * mpae40;
+    const LS40 = (16/12) * mpae40;
+    if (pae <= LI40) return 16;
+    if (pae >= LS40) return 8;
+    return 16 - 8 * (pae - LI40) / (LS40 - LI40);
+  }
+}
+
+// ── Extrair horas de ensino dos details (pontos→horas) ────────
+// rawScore = 10 * (chTotal/32) → chTotal = rawScore * 32/10
+// Ag: I-1-* (graduação, presencial + EAD)
+// Ass: I-2-1 (pós-grad stricto sensu presencial/EAD — não inclui I-2-2 lato sensu)
+function calcTeachingHours(details) {
+  let horasGrad = 0, horasStricto = 0;
+  (details || []).forEach(d => {
+    if (!d.code) return;
+    const pts = d.calculated || 0;
+    const c = d.code.split('-');
+    if (c[0] !== 'I') return;
+    if (c[1] === '1') {
+      horasGrad += pts * 32 / 10;
+    } else if (c[1] === '2' && c[2] === '1') {
+      horasStricto += pts * 32 / 10;
+    }
+    // I-2-2 (lato sensu, remunerada) excluído
+  });
+  return {
+    Ag:  Math.round(horasGrad   * 10) / 10,
+    Ass: Math.round(horasStricto * 10) / 10,
+  };
+}
+
+// ── Calcular CR por departamento ──────────────────────────────
+function computeCR(evaluations, mpae40, mpae20) {
+  const byArea = {};
+  AREAS.forEach(ar => {
+    byArea[ar.id] = { id: ar.id, label: ar.label, color: ar.color, profs: [] };
+  });
+
+  evaluations.forEach(ev => {
+    if (!byArea[ev.area]) return;
+    const pae  = calcPAE(ev.scores);
+    const hd   = calcHd(pae, ev.regime, mpae40, mpae20);
+    const { Ag, Ass } = calcTeachingHours(ev.scores.details);
+    byArea[ev.area].profs.push({
+      name: ev.name,
+      regime: ev.regime,
+      pae,
+      hd: Math.round(hd * 100) / 100,
+      Ag,
+      Ass,
+      cdrd: Math.round((Ag + Ass) * 10) / 10,
+    });
+  });
+
+  return AREAS.map(ar => {
+    const dept = byArea[ar.id];
+    if (!dept || !dept.profs.length) return null;
+    const NDD  = dept.profs.length;
+    const sumHd = dept.profs.reduce((s, p) => s + p.hd, 0);
+    const CDPD = Math.round(32 * sumHd);
+    const CDRD = Math.round(dept.profs.reduce((s, p) => s + p.cdrd, 0));
+    const CRD  = CDPD > 0 ? Math.round(CDRD / CDPD * 1000) / 1000 : 0;
+    return { ...dept, NDD, CDPD, CDRD, CRD };
+  }).filter(Boolean).sort((a, b) => a.CRD - b.CRD);
+}
+
+// ── Componente CRDModule ──────────────────────────────────────
+function CRDModule({ evaluations, thresholdDE, threshold20, onClose }) {
+  const { useState: uS, useMemo: uM, useRef: uR, useEffect: uE } = React;
+
+  const mpae40 = parseFloat(thresholdDE) || 0;
+  const mpae20  = parseFloat(threshold20) || 0;
+  const [crData, setCrData] = uS(null);
+
+  // Chart refs
+  const crdRef  = uR(null); const crdChart  = uR(null);
+  const hdRef   = uR(null); const hdChart   = uR(null);
+
+  // Compute on mount and when evaluations change
+  uE(() => {
+    if (!evaluations.length || !mpae40) { setCrData(null); return; }
+    setCrData(computeCR(evaluations, mpae40, mpae20));
+  }, [evaluations, mpae40]);
+
+  // ── Chart 1: CRD por departamento ───────────────────────────
+  uE(() => {
+    if (!crdRef.current || !crData) return;
+    if (crdChart.current) { crdChart.current.destroy(); crdChart.current = null; }
+    const sorted = [...crData].sort((a,b) => b.CRD - a.CRD); // decrescente p/ visual
+    crdChart.current = new Chart(crdRef.current, {
+      type: 'bar',
+      data: {
+        labels: sorted.map(d => d.label),
+        datasets: [
+          { label: 'CRD', data: sorted.map(d => d.CRD),
+            backgroundColor: sorted.map(d => d.color + 'cc'),
+            borderColor: sorted.map(d => d.color), borderWidth: 2, borderRadius: 4 },
+          { label: 'Referência (1,0)', type: 'line',
+            data: sorted.map(() => 1.0),
+            borderColor: '#b33a3a', borderWidth: 2, borderDash: [6,3],
+            pointRadius: 0, fill: false },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10 } },
+          tooltip: { callbacks: { label: ctx => ctx.dataset.label === 'CRD'
+            ? ` CRD = ${ctx.parsed.y.toFixed(3)}`
+            : ` Ref: ${ctx.parsed.y.toFixed(1)}` } },
+        },
+        scales: {
+          x: { ticks: { font: { size: 10 } }, grid: { display: false } },
+          y: { beginAtZero: true, ticks: { font: { size: 10 }, callback: v => v.toFixed(2) },
+               grid: { color: '#ebe9e4' } },
+        },
+      },
+    });
+    return () => { if (crdChart.current) { crdChart.current.destroy(); crdChart.current = null; } };
+  }, [crData]);
+
+  // ── Chart 2: Horas aula (CDRD e CDPD) por departamento ──────
+  uE(() => {
+    if (!hdRef.current || !crData) return;
+    if (hdChart.current) { hdChart.current.destroy(); hdChart.current = null; }
+    const sorted = [...crData].sort((a,b) => b.CDRD - a.CDRD);
+    hdChart.current = new Chart(hdRef.current, {
+      type: 'bar',
+      data: {
+        labels: sorted.map(d => d.label),
+        datasets: [
+          { label: 'Horas Realizadas (CDRD)', data: sorted.map(d => d.CDRD),
+            backgroundColor: sorted.map(d => d.color + 'cc'),
+            borderColor: sorted.map(d => d.color), borderWidth: 2, borderRadius: 4 },
+          { label: 'Capacidade Prevista (CDPD)', type: 'line',
+            data: sorted.map(d => d.CDPD),
+            borderColor: '#1a4b8c', borderWidth: 2, borderDash: [5,3],
+            pointRadius: 5, pointBackgroundColor: sorted.map(d => d.color),
+            fill: false },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10 } },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y} h/ano` } },
+        },
+        scales: {
+          x: { ticks: { font: { size: 10 } }, grid: { display: false } },
+          y: { beginAtZero: true, ticks: { font: { size: 10 }, callback: v => v + 'h' },
+               grid: { color: '#ebe9e4' } },
+        },
+      },
+    });
+    return () => { if (hdChart.current) { hdChart.current.destroy(); hdChart.current = null; } };
+  }, [crData]);
+
+  // ── Relatório HTML ────────────────────────────────────────────
+  function gerarRelatorioCR() {
+    if (!crData) return;
+    const m20  = mpae20 || mpae40;  // usa mpae20; fallback para mpae40
+    const LI40 = mpae40 > 0 ? Math.round((8/12)  * mpae40 * 10) / 10 : '—';
+    const LS40 = mpae40 > 0 ? Math.round((16/12) * mpae40 * 10) / 10 : '—';
+    const LI20 = m20    > 0 ? Math.round((8/12)  * m20    * 10) / 10 : '—';
+    const LS20 = m20    > 0 ? Math.round((10/12) * m20    * 10) / 10 : '—';
+
+    let html = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">'
+      + '<title>Relatório CR — EECA</title><style>'
+      + 'body{font-family:Arial,sans-serif;font-size:10pt;color:#111;margin:0;padding:0}'
+      + '.page{max-width:800px;margin:0 auto;padding:30px 40px}'
+      + 'h1{font-size:13pt;font-weight:700;color:#1a4b8c;margin:0 0 4px 0}'
+      + 'h2{font-size:11pt;font-weight:700;color:#1a4b8c;margin:16px 0 6px 0;border-bottom:1px solid #ccc;padding-bottom:3px}'
+      + 'table{width:100%;border-collapse:collapse;font-size:9.5pt;margin-bottom:12px}'
+      + 'th{background:#1a4b8c;color:#fff;padding:5px 8px;text-align:left}'
+      + 'td{padding:5px 8px;border:1px solid #ddd}'
+      + 'tr:nth-child(even) td{background:#f9f9f9}'
+      + '.num{text-align:right;font-family:monospace}'
+      + '.crd-hi{background:#fce8e8;color:#b00}.crd-ok{background:#e8f5ea;color:#1a6e2a}.crd-lo{background:#fff3e0;color:#7a4a00}'
+      + '.param-box{background:#f5f5f5;border:1px solid #ddd;border-radius:4px;padding:10px 14px;font-size:9.5pt;margin-bottom:12px}'
+      + '.param-box b{color:#1a4b8c}'
+      + '@media print{body{font-size:9pt}}</style></head><body><div class="page">';
+
+    html += '<div style="text-align:center;margin-bottom:16px">'
+      + '<div style="font-size:11pt;font-weight:700;color:#1a4b8c">UNIVERSIDADE FEDERAL DE GOIÁS — ESCOLA DE ENGENHARIA CIVIL E AMBIENTAL</div>'
+      + '<div style="font-size:10pt;font-weight:700;margin-top:4px">CAPACIDADE RELATIVA DOS DEPARTAMENTOS — Diretrizes Internas EECA</div>'
+      + '<div style="font-size:9pt;color:#555;margin-top:2px">Gerado em: ' + new Date().toLocaleString('pt-BR') + '</div></div>';
+
+    html += '<h2>Parâmetros da Análise</h2>';
+    html += '<div class="param-box">'
+      + '<b>MPAE40</b>: ' + mpae40 + ' pts &nbsp;|&nbsp; '
+      + '<b>LI40</b>: ' + LI40 + ' pts &nbsp;|&nbsp; <b>LS40</b>: ' + LS40 + ' pts<br>'
+      + '<b>MPAE20</b>: ' + (mpae20||'não definido') + ' pts &nbsp;|&nbsp; '
+      + '<b>LI20</b>: ' + LI20 + ' pts &nbsp;|&nbsp; <b>LS20</b>: ' + LS20 + ' pts<br>'
+      + '<b>Semanas letivas</b>: 32 &nbsp;|&nbsp; '
+      + '<b>Horas realizadas</b>: apenas graduação + pós-grad. stricto sensu (lato sensu excluído)<br>'
+      + '<b>Total de RADOCs carregados</b>: ' + evaluations.length
+      + '</div>';
+
+    html += '<h2>Resumo por Departamento (ordenado por CRD crescente)</h2>';
+    html += '<table><thead><tr>'
+      + '<th>Departamento</th><th class="num">NDD</th>'
+      + '<th class="num">CDPD (h/ano)</th><th class="num">CDRD (h/ano)</th>'
+      + '<th class="num">CRD</th><th>Situação</th>'
+      + '</tr></thead><tbody>';
+    const sortedAsc = [...crData].sort((a,b) => a.CRD - b.CRD);
+    sortedAsc.forEach(d => {
+      const sit = d.CRD > 1.1 ? ['crd-hi','⚠ Acima da capacidade'] :
+                  d.CRD < 0.85 ? ['crd-lo','⬇ Abaixo da capacidade'] :
+                  ['crd-ok','✓ Dentro do esperado'];
+      html += '<tr><td><span style="display:inline-block;width:8px;height:8px;background:' + d.color + ';border-radius:50%;margin-right:5px"></span>' + d.label + '</td>'
+        + '<td class="num">' + d.NDD + '</td>'
+        + '<td class="num">' + d.CDPD + '</td>'
+        + '<td class="num">' + d.CDRD + '</td>'
+        + '<td class="num ' + sit[0] + '"><strong>' + d.CRD.toFixed(3) + '</strong></td>'
+        + '<td class="' + sit[0] + '">' + sit[1] + '</td></tr>';
+    });
+    html += '</tbody></table>';
+
+    // Detail per professor
+    html += '<h2>Detalhamento por Docente</h2>';
+    sortedAsc.forEach(d => {
+      html += '<h3 style="font-size:10.5pt;margin:12px 0 4px 0;color:#1a4b8c">' + d.label + '</h3>';
+      html += '<table><thead><tr>'
+        + '<th>Docente</th><th>Regime</th>'
+        + '<th class="num">PAE (pts)</th><th class="num">Hd (h/sem)</th>'
+        + '<th class="num">Ag (h/ano)</th><th class="num">Ass (h/ano)</th>'
+        + '<th class="num">CDRD ind. (h/ano)</th>'
+        + '</tr></thead><tbody>';
+      const profs = [...d.profs].sort((a,b) => a.hd - b.hd);
+      profs.forEach(p => {
+        html += '<tr><td>' + p.name + '</td><td>' + p.regime + '</td>'
+          + '<td class="num">' + p.pae.toFixed(1) + '</td>'
+          + '<td class="num">' + p.hd.toFixed(2) + '</td>'
+          + '<td class="num">' + p.Ag.toFixed(1) + '</td>'
+          + '<td class="num">' + p.Ass.toFixed(1) + '</td>'
+          + '<td class="num">' + p.cdrd.toFixed(1) + '</td></tr>';
+      });
+      // Subtotal
+      const sumHd  = profs.reduce((s,p) => s+p.hd, 0);
+      const sumCdrd = profs.reduce((s,p) => s+p.cdrd, 0);
+      html += '<tr style="font-weight:700;background:#eee">'
+        + '<td colspan="3">Subtotal ' + d.label + '</td>'
+        + '<td class="num">' + sumHd.toFixed(2) + '</td>'
+        + '<td class="num">—</td><td class="num">—</td>'
+        + '<td class="num">' + sumCdrd.toFixed(1) + '</td></tr>';
+      html += '</tbody></table>';
+    });
+
+    html += '</div>'
+      + '<div style="text-align:center;padding:20px" class="no-print">'
+      + '<button onclick="window.print()" style="padding:8px 24px;font-size:12pt;cursor:pointer">Imprimir / Salvar PDF</button>'
+      + '</div></body></html>';
+
+    const blob = new Blob([html], { type: 'text/html' });
+    window.open(URL.createObjectURL(blob), '_blank');
+  }
+
+  // ── Render ────────────────────────────────────────────────────
+  const semDados = !evaluations.length || !mpae40;
+
+  return e('div', { className: 'cad-overlay', onClick: ev => { if (ev.target.classList.contains('cad-overlay')) onClose(); } },
+    e('div', { className: 'cad-modal' },
+
+      e('div', { className: 'cad-modal-header' },
+        e('h2', null, '📊 Capacidade Relativa dos Departamentos — Diretrizes EECA'),
+        e('button', { className: 'btn btn-sm', onClick: onClose }, '✕ Fechar')
+      ),
+
+      e('div', { className: 'cad-modal-body' },
+
+        // ── Parâmetros ─────────────────────────────────────────
+        e('div', { className: 'cad-section-sep' }, 'Parâmetros da Análise'),
+        e('div', { className: 'cad-scores-display', style: { marginBottom: 4 } },
+          e('div', { className: 'cad-score-item' },
+            e('span', { className: 'sk' }, 'MPAE40 configurado'),
+            e('span', { className: 'sv' }, mpae40 > 0 ? mpae40 + ' pts' : '⚠ Não definido')
+          ),
+          mpae40 > 0 && e('div', { className: 'cad-score-item' },
+            e('span', { className: 'sk' }, 'LI40'),
+            e('span', { className: 'sv' }, Math.round((8/12)*mpae40*10)/10 + ' pts')
+          ),
+          mpae40 > 0 && e('div', { className: 'cad-score-item' },
+            e('span', { className: 'sk' }, 'LS40'),
+            e('span', { className: 'sv' }, Math.round((16/12)*mpae40*10)/10 + ' pts')
+          ),
+          mpae20 > 0 && e('div', { className: 'cad-score-item' },
+            e('span', { className: 'sk' }, 'MPAE20 configurado'),
+            e('span', { className: 'sv' }, mpae20 + ' pts')
+          ),
+          mpae20 > 0 && e('div', { className: 'cad-score-item' },
+            e('span', { className: 'sk' }, 'LI20'),
+            e('span', { className: 'sv' }, Math.round((8/12)*(mpae20||mpae40)*10)/10 + ' pts')
+          ),
+          mpae20 > 0 && e('div', { className: 'cad-score-item' },
+            e('span', { className: 'sk' }, 'LS20'),
+            e('span', { className: 'sv' }, Math.round((10/12)*(mpae20||mpae40)*10)/10 + ' pts')
+          ),
+          e('div', { className: 'cad-score-item' },
+            e('span', { className: 'sk' }, 'RADOCs carregados'),
+            e('span', { className: 'sv' }, evaluations.length)
+          ),
+        ),
+
+        semDados && e('div', { className: 'cad-aviso-externo' },
+          '⚠ Carregue os RADOCs e defina o MPAE40 em "Limiares de Aprovação — DE/40H" para ativar a análise.'
+        ),
+
+        // ── Tabela sumário ─────────────────────────────────────
+        crData && e('div', null,
+          e('div', { className: 'cad-section-sep' }, 'Capacidade Relativa por Departamento (CRD = CDRD ÷ CDPD)'),
+          e('div', { className: 'cad-results' },
+            e('div', { className: 'cad-results-header approved', style: { fontSize: 12 } },
+              e('span', null, 'Departamento'),
+              e('span', null, 'NDD · CDPD · CDRD · CRD')
+            ),
+            crData.map((d, i) => {
+              const sit = d.CRD > 1.1 ? ['reprovado', '⚠ Acima'] :
+                          d.CRD < 0.85 ? ['condicional', '⬇ Abaixo'] : ['approved', '✓ OK'];
+              return e('div', { key: d.id, className: 'cad-inciso-row',
+                style: { gridTemplateColumns: '1.8fr 60px 90px 90px 90px 90px', gap: 8 } },
+                e('span', { className: 'cad-inciso-label', style: { display:'flex', alignItems:'center', gap:6 } },
+                  e('span', { style: { display:'inline-block', width:8, height:8, background:d.color, borderRadius:'50%' } }),
+                  d.label
+                ),
+                e('span', { className: 'cad-inciso-val', style: { fontSize: 11 } }, d.NDD),
+                e('span', { className: 'cad-inciso-val', style: { fontSize: 11 } }, d.CDPD + 'h'),
+                e('span', { className: 'cad-inciso-val', style: { fontSize: 11 } }, d.CDRD + 'h'),
+                e('span', { className: 'cad-inciso-val', style: { fontWeight:700, fontSize:13 } }, d.CRD.toFixed(3)),
+                e('span', { className: 'cad-inciso-ok ' + sit[0], style: { fontSize: 11 } }, sit[1])
+              );
+            })
+          )
+        ),
+
+        // ── Gráficos ───────────────────────────────────────────
+        crData && e('div', { className: 'cad-section-sep' }, 'Gráficos'),
+        crData && e('div', { style: { display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 } },
+          e('div', null,
+            e('div', { style: { fontSize:12, fontWeight:600, marginBottom:6, color:'var(--accent)' } }, 'CRD por Departamento'),
+            e('div', { style: { height:220 } }, e('canvas', { ref: crdRef }))
+          ),
+          e('div', null,
+            e('div', { style: { fontSize:12, fontWeight:600, marginBottom:6, color:'var(--accent)' } }, 'Horas Aula: Realizadas vs Capacidade'),
+            e('div', { style: { height:220 } }, e('canvas', { ref: hdRef }))
+          )
+        ),
+
+        // ── Botão relatório ────────────────────────────────────
+        crData && e('div', { className: 'cad-report-btn-row', style: { marginTop: 8 } },
+          e('button', { className: 'btn', onClick: gerarRelatorioCR }, '📄 Gerar Relatório Completo')
         )
 
       ) // modal-body
