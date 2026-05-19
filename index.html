@@ -1765,38 +1765,49 @@ function buildReportCharts(evs, regime, refs, thDE, th20) {
   function _aprov(ev) { return calculateApproval(ev.scores,ev.regime,thDE,th20).status.startsWith('APROVADO'); }
       const [barRef, barChart, stackRef, stackChart, hbarRef2, hbarChart2, histRef2, histChart2] = refs;
       const thr = regime === '20H' ? th20 : thDE;
-      const Tm  = 1.05 * thr;
+      // Usa limiar configurado diretamente (sem multiplicar por 1,05)
 
       // Bar — avg prod per area
       const areaData = AREAS.map(a=>a.id).map(id => {
         const a = evs.filter(ev => ev.area === id);
         return a.length ? Math.round(a.map(_getProdForReport).reduce((s,v)=>s+v,0)/a.length) : null;
       });
+
+      // Calcular yMax compartilhado bar ↔ stacked (mesma escala)
+      const catKeysRpt   = ['ENS_TOTAL','PROJ_ENS','PRI','PSQ','EXT','ADM','RPT','OTR'];
+      const stackTotals  = AREAS.map(a=>a.id).map(id => {
+        const a = evs.filter(ev => ev.area === id);
+        return a.length ? catKeysRpt.reduce((sum,key)=>
+          sum + Math.round(a.map(ev=>ev.scores[key]).reduce((s,v)=>s+v,0)/a.length), 0) : 0;
+      });
+      const barMaxRpt    = Math.max(...areaData.filter(v=>v!=null), 0);
+      const stackMaxRpt  = Math.max(...stackTotals, 0);
+      const sharedYRpt   = Math.ceil(Math.max(barMaxRpt, stackMaxRpt, thr>0?thr:0) / 100) * 100 + 50;
+
       _buildChartForReport(barRef, barChart, { type:'bar', data:{ labels:AREAS.map(a=>a.label),
         datasets:[
           { label:'Produção Média', data:areaData,
             backgroundColor:AREAS.map(a=>a.color).map(c=>c+'cc'), borderColor:AREAS.map(a=>a.color), borderWidth:2, borderRadius:3 },
-          thr>0 ? { label:`Limiar (${Math.round(Tm)} pts)`, data:AREAS.map(a=>a.label).map(()=>Math.round(Tm)),
+          thr>0 ? { label:`Limiar (${Math.round(thr)} pts)`, data:AREAS.map(a=>a.label).map(()=>Math.round(thr)),
             type:'line', borderColor:'#1a4b8c', borderWidth:2, borderDash:[6,3], pointRadius:0, fill:false } : null,
         ].filter(Boolean) },
         options:{ responsive:false, maintainAspectRatio:false,
           plugins:{ legend:{position:'bottom',labels:{font:{size:9},padding:8}} },
           scales:{ x:{ticks:{font:{size:9}},grid:{display:false}},
-                   y:{beginAtZero:true,ticks:{font:{size:9},callback:v=>v+' pts'},grid:{color:'#ebe9e4'}} } }
+                   y:{beginAtZero:true,max:sharedYRpt,ticks:{font:{size:9},callback:v=>v+' pts'},grid:{color:'#ebe9e4'}} } }
       });
 
       // Stacked
-      const catKeys  = ['ENS_TOTAL','PROJ_ENS','PRI','PSQ','EXT','ADM','RPT','OTR'];
       const catLabels= ['Ensino','Proj.Ensino','Prod.Intel.','Pesquisa','Extensão','Admin.','Repres.','Outras'];
       const catColors= ['#1a4b8c','#3b7ab8','#7a3b8c','#2d7a3a','#b36b1a','#8c3b3b','#3b6b8c','#5a5a5a'];
       _buildChartForReport(stackRef, stackChart, { type:'bar', data:{ labels:AREAS.map(a=>a.label),
-        datasets:catKeys.map((key,i)=>({ label:catLabels[i],
+        datasets:catKeysRpt.map((key,i)=>({ label:catLabels[i],
           data:AREAS.map(a=>a.id).map(id=>{ const a=evs.filter(ev=>ev.area===id); return a.length?Math.round(a.map(ev=>ev.scores[key]).reduce((s,v)=>s+v,0)/a.length):0; }),
           backgroundColor:catColors[i]+'dd', borderWidth:0, borderRadius:2 })) },
         options:{ responsive:false, maintainAspectRatio:false,
           plugins:{ legend:{position:'bottom',labels:{font:{size:9},padding:6,boxWidth:10}} },
           scales:{ x:{stacked:true,ticks:{font:{size:9}},grid:{display:false}},
-                   y:{stacked:true,beginAtZero:true,ticks:{font:{size:9},callback:v=>v+'pts'},grid:{color:'#ebe9e4'}} } }
+                   y:{stacked:true,beginAtZero:true,max:sharedYRpt,ticks:{font:{size:9},callback:v=>v+'pts'},grid:{color:'#ebe9e4'}} } }
       });
 
       // HBar — approval rate per area
@@ -2224,7 +2235,8 @@ ${reportArea !== AREA_ALL && areaProfs.length > 0 ? `<br><br>Foco em <strong>${s
 
         barArea:(() => {
           if (!T_de || !fullBestArea) return 'Defina o Limiar de Aprovação (DE/40H) para ativar a análise comparativa.';
-          const limiar  = Math.round(Tm_de);
+          // Usa o limiar exato configurado pelo usuário (T_de), não Xm×1,05
+          const limiar  = Math.round(T_de);
           const ranked  = [...fullAreaStats].sort((a,b)=>b.avgProd-a.avgProd);
           const top     = ranked[0];
           const bottom  = ranked[ranked.length-1];
@@ -3010,7 +3022,10 @@ ${reviewManualHtml}
               ticks:{font:{size:9}},grid:{color:'#ebe9e4'}},
             y:{type:'linear',min:0,max:12,
               title:{display:true,text:'H-A (h/sem)',font:{size:10},color:'#6b6860'},
-              ticks:{stepSize:2,font:{size:9},callback:v=>v%2===0?v+'h':''},
+              ticks:{stepSize:2,font:{size:9},callback:v=>{
+                if(v===8)return'8h ←mín'; if(v===10)return'10h ←máx';
+                return v%2===0?v+'h':'';
+              }},
               grid:{color:'#ebe9e4'}},
           },
         },
