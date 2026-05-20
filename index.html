@@ -5668,6 +5668,9 @@ function computeCR(evaluations, mpae40, mpae20) {
     const pae  = calcPAE(ev.scores);
     const hd   = calcHd(pae, ev.regime, mpae40, mpae20);
     const { Ag, Ass, horasRadoc, horasRadocSem } = calcTeachingHours(ev.scores.details);
+    const cdrdInd  = Math.round((Ag + Ass) * 10) / 10;
+    const cdpdInd  = Math.round(32 * hd * 10) / 10;
+    const crdInd   = cdpdInd > 0 ? Math.round(cdrdInd / cdpdInd * 1000) / 1000 : 0;
     byArea[ev.area].profs.push({
       name: ev.name,
       regime: ev.regime,
@@ -5677,7 +5680,9 @@ function computeCR(evaluations, mpae40, mpae20) {
       horasRadocSem,
       Ag,
       Ass,
-      cdrd: Math.round((Ag + Ass) * 10) / 10,
+      cdrd:   cdrdInd,
+      cdpdInd,
+      crdInd,
     });
   });
 
@@ -6038,6 +6043,23 @@ Não entra no cálculo do CDRD — serve como referência comparativa com o Hd.<
 </div>
 
 <div class="dict-entry">
+  <div class="term">Capacidade Relativa Individual do Docente — CRD Individual</div>
+  <div class="formula">CRD Individual = CDRD individual ÷ CDPD individual = (Ag + Ass) ÷ (32 × Hd)</div>
+  <div class="interp">
+    <strong>O que é:</strong> o CRD calculado para cada docente individualmente, usando a mesma lógica do CRD departamental. 
+    Mede se o professor está ensinando proporcionalmente ao que o modelo prevê como sua disponibilidade.<br>
+    <strong>Escala:</strong><br>
+    &nbsp;&nbsp;• CRD ind. &lt; 0,85 → docente com disponibilidade (ensina menos do que seu Hd permitiria)<br>
+    &nbsp;&nbsp;• 0,85 ≤ CRD ind. ≤ 1,10 → docente em equilíbrio<br>
+    &nbsp;&nbsp;• CRD ind. &gt; 1,10 → docente sobrecarregado (ensina além do que seu perfil de produção sugere)<br>
+    <strong>Uso estratégico:</strong> quando um departamento recebe uma vaga docente, os professores com maior CRD individual 
+    são os que mais sentirão o alívio. As disciplinas que eles ministram indicam a área do conhecimento 
+    onde a nova contratação deve atuar. A tabela é ordenada pelo CRD individual decrescente 
+    para facilitar essa identificação.
+  </div>
+</div>
+
+<div class="dict-entry">
   <div class="term">Capacidade Relativa do Departamento — CRD</div>
   <div class="formula">CRD = CDRD ÷ CDPD</div>
   <div class="interp">
@@ -6120,17 +6142,29 @@ Não entra no cálculo do CDRD — serve como referência comparativa com o Hd.<
       + '<th>Regime</th>'
       + '<th class="num">Produção Acadêmica sem Ensino (pts)</th>'
       + '<th class="num">H-A Semanais RADOC (h/sem)</th>'
-      + '<th class="num">Disponibilidade Semanal Estimada (h/sem)</th>'
+      + '<th class="num">Disponibilidade Semanal Estimada — Hd (h/sem)</th>'
       + '<th class="num">Graduação Realizada (h/ano)</th>'
       + '<th class="num">Pós-Grad. Stricto Sensu (h/ano)</th>'
-      + '<th class="num">Total Ensino Realizado (h/ano)</th>'
+      + '<th class="num">Total Ensino Realizado — CDRD ind. (h/ano)</th>'
+      + '<th class="num">Cap. Prevista Individual — CDPD ind. (h/ano)</th>'
+      + '<th class="num">CRD Individual</th>'
+      + '<th>Situação</th>'
       + '</tr></thead><tbody>';
+
+    function crdIndCls(v) {
+      return v > 1.1 ? 'crd-hi' : v < 0.85 ? 'crd-ok' : 'crd-ok';
+    }
+    function crdIndLabel(v) {
+      return v > 1.1 ? '⚠ Sobrecarga' : v < 0.85 ? '⬇ Disponib.' : '✓ Equilíbrio';
+    }
 
     function deptDetailTable(d) {
       let t = '<div class="dept-header"><span class="dot" style="background:' + d.color + '"></span>' + d.label + '</div>';
       t += profTableHeader;
-      const profs = [...d.profs].sort((a,b) => a.hd - b.hd);
+      // sort by crdInd descending to show most overloaded first
+      const profs = [...d.profs].sort((a,b) => b.crdInd - a.crdInd);
       profs.forEach(p => {
+        const crdCls  = p.crdInd > 1.1 ? 'crd-hi' : p.crdInd < 0.85 ? 'crd-lo' : 'crd-ok';
         const zeroAlert = p.cdrd === 0 ? ' style="color:#b00"' : '';
         t += '<tr><td' + zeroAlert + '>' + p.name + '</td>'
           + '<td>' + p.regime + '</td>'
@@ -6139,7 +6173,10 @@ Não entra no cálculo do CDRD — serve como referência comparativa com o Hd.<
           + '<td class="num">' + p.hd.toFixed(2) + '</td>'
           + '<td class="num">' + p.Ag.toFixed(1) + '</td>'
           + '<td class="num">' + p.Ass.toFixed(1) + '</td>'
-          + '<td class="num' + (p.cdrd===0?' crd-hi':'') + '">' + p.cdrd.toFixed(1) + '</td></tr>';
+          + '<td class="num' + (p.cdrd===0?' crd-hi':'') + '">' + p.cdrd.toFixed(1) + '</td>'
+          + '<td class="num">' + p.cdpdInd.toFixed(1) + '</td>'
+          + '<td class="num ' + crdCls + '"><strong>' + p.crdInd.toFixed(3) + '</strong></td>'
+          + '<td class="' + crdCls + '" style="font-size:8.5pt">' + crdIndLabel(p.crdInd) + '</td></tr>';
       });
       const sumHd      = profs.reduce((s,p) => s+p.hd, 0);
       const sumCdrd    = profs.reduce((s,p) => s+p.cdrd, 0);
@@ -6150,7 +6187,9 @@ Não entra no cálculo do CDRD — serve como referência comparativa com o Hd.<
         + '<td class="num">' + sumRadocSem.toFixed(2) + '</td>'
         + '<td class="num">' + sumHd.toFixed(2) + '</td>'
         + '<td class="num">—</td><td class="num">—</td>'
-        + '<td class="num">' + sumCdrd.toFixed(1) + '</td></tr>';
+        + '<td class="num">' + sumCdrd.toFixed(1) + '</td>'
+        + '<td class="num">—</td><td class="num ' + (d.CRD > 1.1 ? 'crd-hi' : d.CRD < 0.85 ? 'crd-lo' : 'crd-ok') + '">'
+        + d.CRD.toFixed(3) + '</td><td>—</td></tr>';
       t += '</tbody></table>';
       return t;
     }
@@ -6168,18 +6207,26 @@ Não entra no cálculo do CDRD — serve como referência comparativa com o Hd.<
           + '<th>Docente</th>'
           + '<th class="num">Prod. Acad. sem Ensino (pts)</th>'
           + '<th class="num">H-A Sem. RADOC (h/sem)</th>'
-          + '<th class="num">Disp. Semanal (h/sem)</th>'
-          + '<th class="num">Total Ensino (h/ano)</th>'
+          + '<th class="num">Disp. Semanal — Hd (h/sem)</th>'
+          + '<th class="num">Total Ensino — CDRD ind. (h/ano)</th>'
+          + '<th class="num">Cap. Prevista — CDPD ind. (h/ano)</th>'
+          + '<th class="num">CRD Individual</th>'
+          + '<th>Situação</th>'
           + '</tr></thead><tbody>';
-        const profs = [...d.profs].sort((a,b) => a.hd - b.hd);
+        // sort by crdInd descending — most overloaded first
+        const profs = [...d.profs].sort((a,b) => b.crdInd - a.crdInd);
         profs.forEach((p, i) => {
           const zeroAlert = p.cdrd === 0 ? ' style="color:#b00;font-style:italic"' : '';
+          const crdCls = p.crdInd > 1.1 ? 'crd-hi' : p.crdInd < 0.85 ? 'crd-lo' : 'crd-ok';
           html += '<tr><td' + zeroAlert + '>Docente ' + String(i+1).padStart(2,'0')
             + (p.cdrd===0 ? ' ⚠' : '') + '</td>'
             + '<td class="num">' + p.pae.toFixed(1) + '</td>'
             + '<td class="num">' + (p.horasRadocSem||0).toFixed(2) + '</td>'
             + '<td class="num">' + p.hd.toFixed(2) + '</td>'
-            + '<td class="num' + (p.cdrd===0?' crd-hi':'') + '">' + p.cdrd.toFixed(1) + '</td></tr>';
+            + '<td class="num' + (p.cdrd===0?' crd-hi':'') + '">' + p.cdrd.toFixed(1) + '</td>'
+            + '<td class="num">' + p.cdpdInd.toFixed(1) + '</td>'
+            + '<td class="num ' + crdCls + '"><strong>' + p.crdInd.toFixed(3) + '</strong></td>'
+            + '<td class="' + crdCls + '" style="font-size:8.5pt">' + crdIndLabel(p.crdInd) + '</td></tr>';
         });
         const sumCdrd    = profs.reduce((s,p) => s+p.cdrd, 0);
         const sumRadocSem= Math.round(profs.reduce((s,p) => s+(p.horasRadocSem||0), 0)*100)/100;
@@ -6189,7 +6236,10 @@ Não entra no cálculo do CDRD — serve como referência comparativa com o Hd.<
           + '<td class="num">—</td>'
           + '<td class="num">' + sumRadocSem.toFixed(2) + '</td>'
           + '<td class="num">Média: ' + avgHd.toFixed(2) + '</td>'
-          + '<td class="num">' + sumCdrd.toFixed(1) + '</td></tr>';
+          + '<td class="num">' + sumCdrd.toFixed(1) + '</td>'
+          + '<td class="num">—</td>'
+          + '<td class="num ' + (d.CRD > 1.1 ? 'crd-hi' : d.CRD < 0.85 ? 'crd-lo' : 'crd-ok') + '">'
+          + d.CRD.toFixed(3) + '</td><td>—</td></tr>';
         html += '</tbody></table>';
       });
     } else {
