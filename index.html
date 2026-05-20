@@ -5839,7 +5839,7 @@ tr:nth-child(even) td{background:#f9f9f9}
     // For summary: section 3 is replaced by anonymous aggregated view
 
     // ── Automated narrative generator ──────────────────────────
-    function generateNarrative(data) {
+    function generateNarrative(data, deptId) {
       const sorted = [...data].sort((a,b) => a.CRD - b.CRD);
       const total  = evaluations.length;
 
@@ -5862,8 +5862,11 @@ tr:nth-child(even) td{background:#f9f9f9}
         + (below.length ? below.length + ' departamento(s) operam abaixo (CRD < 0,85); ' : '')
         + ok.length + ' departamento(s) estão no intervalo de equilíbrio (0,85 ≤ CRD ≤ 1,10).</p>';
 
+      // Filter: resumo (deptId=null) → show all; dept report → only that dept
+      const deptsToShow = deptId ? sorted.filter(d => d.id === deptId) : sorted;
+
       // Per department
-      sorted.forEach(d => {
+      deptsToShow.forEach(d => {
         const delta = d.CDRD - d.CDPD;
         const absDelta = Math.abs(delta);
         const avgHd = Math.round(d.CDPD / 32 / d.NDD * 100) / 100;
@@ -5892,7 +5895,7 @@ tr:nth-child(even) td{background:#f9f9f9}
             + '<strong>Ação recomendada:</strong> priorizar este departamento no diálogo sobre redistribuição de disciplinas ou reforço de quadro.';
         } else if (d.CRD < 0.85) {
           html += 'O departamento está ensinando <strong>' + absDelta + 'h/ano abaixo</strong> do que o modelo prevê como capacidade disponível. '
-            + 'A capacidade ociosa pode indicar que disciplinas sob responsabilidade deste departamento foram assumidas por outros, '
+            + 'A capacidade disponível pode indicar que disciplinas sob responsabilidade deste departamento foram assumidas por outros, '
             + 'ou que há oportunidade para ampliar a oferta de componentes curriculares sem sobrecarregar os docentes. '
             + '<strong>Ação recomendada:</strong> avaliar absorção de disciplinas transversais ou eletivas atualmente em outros departamentos.';
         } else {
@@ -5902,14 +5905,16 @@ tr:nth-child(even) td{background:#f9f9f9}
         }
 
         if (semAulas.length) {
+          const semNomes = deptId
+            ? semAulas.map(p => p.name.split(' ')[0]).join(', ')
+            : semAulas.length + ' docente(s)';
           html += ' <em>Nota: ' + semAulas.length + ' docente(s) não apresentaram horas de ensino no período analisado ('
-            + semAulas.map(p => p.name.split(' ')[0]).join(', ')
-            + ') — verificar afastamentos ou situações especiais.</em>';
+            + semNomes + ') — verificar afastamentos ou situações especiais.</em>';
         }
         html += '</p>';
       });
 
-      // Strategic synthesis table
+      // Strategic synthesis table — always shown
       html += '<h3>Síntese Estratégica para o CD/EECA</h3>';
       html += '<table class="synth-table"><thead><tr>'
         + '<th>Departamento</th><th>CRD</th><th>Situação</th><th>Delta (h/ano)</th><th>Ação recomendada pelas Diretrizes</th>'
@@ -5917,7 +5922,7 @@ tr:nth-child(even) td{background:#f9f9f9}
       sorted.forEach(d => {
         const delta  = d.CDRD - d.CDPD;
         const cls    = d.CRD > 1.1 ? 'crd-hi' : d.CRD < 0.85 ? 'crd-lo' : 'crd-ok';
-        const sit    = d.CRD > 1.1 ? '⚠ Sobrecarga' : d.CRD < 0.85 ? '⬇ Ociosidade' : '✓ Equilíbrio';
+        const sit    = d.CRD > 1.1 ? '⚠ Sobrecarga' : d.CRD < 0.85 ? '⬇ Disponibilidade' : '✓ Equilíbrio';
         const acao   = d.CRD > 1.1 ? 'Redistribuição ou reforço de vagas; diálogo prioritário com a chefia'
                      : d.CRD < 0.85 ? 'Avaliar absorção de disciplinas transversais ou eletivas'
                      : 'Manter distribuição atual como referência de equilíbrio';
@@ -6039,7 +6044,7 @@ Não entra no cálculo do CDRD — serve como referência comparativa com o Hd.<
     <strong>O que é:</strong> razão entre o ensino realizado e a capacidade disponível estimada pelo modelo. 
     É o indicador central das Diretrizes EECA para diagnóstico de equilíbrio.<br>
     <strong>Escala de interpretação:</strong><br>
-    &nbsp;&nbsp;• CRD &lt; 0,85 → capacidade ociosa (departamento está ensinando menos do que poderia absorver)<br>
+    &nbsp;&nbsp;• CRD &lt; 0,85 → capacidade disponível (departamento está ensinando menos do que poderia absorver)<br>
     &nbsp;&nbsp;• 0,85 ≤ CRD ≤ 1,10 → equilíbrio saudável<br>
     &nbsp;&nbsp;• CRD &gt; 1,10 → sobrecarga (departamento está ensinando além da capacidade prevista)<br>
     <strong>Atenção:</strong> o CRD é um instrumento de <em>diagnóstico</em>, não de avaliação. 
@@ -6081,7 +6086,7 @@ Não entra no cálculo do CDRD — serve como referência comparativa com o Hd.<
     const sortedAsc = [...crData].sort((a,b) => a.CRD - b.CRD);
     sortedAsc.forEach(d => {
       const cls = d.CRD > 1.1 ? 'crd-hi' : d.CRD < 0.85 ? 'crd-lo' : 'crd-ok';
-      const sit = d.CRD > 1.1 ? '⚠ Sobrecarga' : d.CRD < 0.85 ? '⬇ Cap. Ociosa' : '✓ Equilíbrio';
+      const sit = d.CRD > 1.1 ? '⚠ Sobrecarga' : d.CRD < 0.85 ? '⬇ Disponibilidade' : '✓ Equilíbrio';
       html += '<tr><td><span class="dot" style="background:' + d.color + '"></span>' + d.label + '</td>'
         + '<td class="num">' + d.NDD + '</td>'
         + '<td class="num">' + d.CDPD + '</td>'
@@ -6200,7 +6205,7 @@ Não entra no cálculo do CDRD — serve como referência comparativa com o Hd.<
 
     // Automated narrative analysis
     html += '<h2>4. Análise Diagnóstica Automatizada</h2>';
-    html += generateNarrative(crData);
+    html += generateNarrative(crData, isResumo ? null : tipo);
 
     // Technical dictionary
     html += '<h2>5. Dicionário Técnico das Variáveis</h2>';
