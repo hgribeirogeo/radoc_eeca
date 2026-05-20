@@ -5700,6 +5700,7 @@ function CRDModule({ evaluations, thresholdDE, threshold20, onClose }) {
   const mpae40 = parseFloat(thresholdDE) || 0;
   const mpae20  = parseFloat(threshold20) || 0;
   const [crData, setCrData] = uS(null);
+  const [relTipo, setRelTipo] = uS('resumo');   // 'resumo' | dept id
 
   // Chart refs
   const crdRef  = uR(null); const crdChart  = uR(null);
@@ -5785,7 +5786,7 @@ function CRDModule({ evaluations, thresholdDE, threshold20, onClose }) {
   }, [crData]);
 
   // ── Relatório HTML ────────────────────────────────────────────
-  function gerarRelatorioCR() {
+  function gerarRelatorioCR(tipo) {
     if (!crData) return;
     // Capture dashboard charts as images
     function captureCRChart(ref) {
@@ -5830,6 +5831,12 @@ tr:nth-child(even) td{background:#f9f9f9}
 .alert-lo{background:#fff3e0;border:1px solid #e0c090;color:#704000}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
 @media print{body{font-size:9pt}.no-print{display:none}}`;
+
+    // ── Branch: resumo (anonymous) vs departamento (with names) ──
+    const isResumo = (tipo === 'resumo');
+    const deptFilter = isResumo ? null : crData.find(d => d.id === tipo);
+    // For dept report: only show that dept in section 3; other sections show full unit
+    // For summary: section 3 is replaced by anonymous aggregated view
 
     // ── Automated narrative generator ──────────────────────────
     function generateNarrative(data) {
@@ -6045,9 +6052,13 @@ Não entra no cálculo do CDRD — serve como referência comparativa com o Hd.<
     let html = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">'
       + '<title>Relatório CR — EECA/UFG</title><style>' + CSS + '</style></head><body><div class="page">';
 
+    const tituloRel = isResumo
+      ? 'CAPACIDADE RELATIVA DOS DEPARTAMENTOS — Visão Geral (Sem Identificação Nominal)'
+      : 'CAPACIDADE RELATIVA — ' + (deptFilter ? deptFilter.label.toUpperCase() : '') + ' — Relatório para a Chefia';
     html += '<div style="text-align:center;margin-bottom:16px">'
       + '<div style="font-size:11pt;font-weight:700;color:#1a4b8c">UNIVERSIDADE FEDERAL DE GOIÁS — ESCOLA DE ENGENHARIA CIVIL E AMBIENTAL</div>'
-      + '<div style="font-size:10pt;font-weight:700;margin-top:4px">CAPACIDADE RELATIVA DOS DEPARTAMENTOS — Diretrizes Internas EECA</div>'
+      + '<div style="font-size:10pt;font-weight:700;margin-top:4px">' + tituloRel + '</div>'
+      + (!isResumo ? '<div style="font-size:9pt;color:#888;margin-top:2px;font-style:italic">Documento restrito — uso exclusivo da Chefia do Departamento</div>' : '')
       + '<div style="font-size:9pt;color:#555;margin-top:2px">Gerado em: ' + new Date().toLocaleString('pt-BR') + '</div></div>';
 
     // Parameters box
@@ -6098,28 +6109,25 @@ Não entra no cálculo do CDRD — serve como referência comparativa com o Hd.<
       html += '</div>';
     }
 
-    // Detail per department — with new column names
-    html += '<h2>3. Detalhamento por Docente</h2>';
-    html += '<p style="font-size:8.5pt;color:#666;margin:-4px 0 10px 0">Horas calculadas a partir dos pontos do RADOC. '
-      + 'Horas RADOC = total registrado (incluindo lato sensu). '
-      + 'Graduação Realizada e Stricto Sensu excluem lato sensu remunerado.</p>';
+    // ── Section 3: conditional on report type ──────────────────
+    const profTableHeader = '<table><thead><tr>'
+      + '<th>Docente</th>'
+      + '<th>Regime</th>'
+      + '<th class="num">Produção Acadêmica sem Ensino (pts)</th>'
+      + '<th class="num">H-A Semanais RADOC (h/sem)</th>'
+      + '<th class="num">Disponibilidade Semanal Estimada (h/sem)</th>'
+      + '<th class="num">Graduação Realizada (h/ano)</th>'
+      + '<th class="num">Pós-Grad. Stricto Sensu (h/ano)</th>'
+      + '<th class="num">Total Ensino Realizado (h/ano)</th>'
+      + '</tr></thead><tbody>';
 
-    sortedAsc.forEach(d => {
-      html += '<div class="dept-header"><span class="dot" style="background:' + d.color + '"></span>' + d.label + '</div>';
-      html += '<table><thead><tr>'
-        + '<th>Docente</th>'
-        + '<th>Regime</th>'
-        + '<th class="num">Produção Acadêmica sem Ensino (pts)</th>'
-        + '<th class="num">H-A Semanais RADOC (h/sem)</th>'
-        + '<th class="num">Disponibilidade Semanal Estimada (h/sem)</th>'
-        + '<th class="num">Graduação Realizada (h/ano)</th>'
-        + '<th class="num">Pós-Grad. Stricto Sensu (h/ano)</th>'
-        + '<th class="num">Total Ensino Realizado (h/ano)</th>'
-        + '</tr></thead><tbody>';
+    function deptDetailTable(d) {
+      let t = '<div class="dept-header"><span class="dot" style="background:' + d.color + '"></span>' + d.label + '</div>';
+      t += profTableHeader;
       const profs = [...d.profs].sort((a,b) => a.hd - b.hd);
       profs.forEach(p => {
         const zeroAlert = p.cdrd === 0 ? ' style="color:#b00"' : '';
-        html += '<tr><td' + zeroAlert + '>' + p.name + '</td>'
+        t += '<tr><td' + zeroAlert + '>' + p.name + '</td>'
           + '<td>' + p.regime + '</td>'
           + '<td class="num">' + p.pae.toFixed(1) + '</td>'
           + '<td class="num">' + (p.horasRadocSem||0).toFixed(2) + '</td>'
@@ -6128,20 +6136,67 @@ Não entra no cálculo do CDRD — serve como referência comparativa com o Hd.<
           + '<td class="num">' + p.Ass.toFixed(1) + '</td>'
           + '<td class="num' + (p.cdrd===0?' crd-hi':'') + '">' + p.cdrd.toFixed(1) + '</td></tr>';
       });
-      // Subtotals
-      const sumHd   = profs.reduce((s,p) => s+p.hd, 0);
-      const sumCdrd = profs.reduce((s,p) => s+p.cdrd, 0);
-      const sumRadocSem = Math.round(profs.reduce((s,p) => s+(p.horasRadocSem||0), 0) * 100) / 100;
-      const sumRadoc= Math.round(profs.reduce((s,p) => s+(p.horasRadoc||0), 0) * 10) / 10;
-      html += '<tr style="font-weight:700;background:#dce8f0">'
+      const sumHd      = profs.reduce((s,p) => s+p.hd, 0);
+      const sumCdrd    = profs.reduce((s,p) => s+p.cdrd, 0);
+      const sumRadocSem= Math.round(profs.reduce((s,p) => s+(p.horasRadocSem||0), 0) * 100) / 100;
+      t += '<tr style="font-weight:700;background:#dce8f0">'
         + '<td colspan="2">Subtotal — ' + d.label + ' (' + d.NDD + ' docentes)</td>'
         + '<td class="num">—</td>'
         + '<td class="num">' + sumRadocSem.toFixed(2) + '</td>'
         + '<td class="num">' + sumHd.toFixed(2) + '</td>'
         + '<td class="num">—</td><td class="num">—</td>'
         + '<td class="num">' + sumCdrd.toFixed(1) + '</td></tr>';
-      html += '</tbody></table>';
-    });
+      t += '</tbody></table>';
+      return t;
+    }
+
+    if (isResumo) {
+      // Section 3 (resumo): anonymous aggregated stats per department — no names
+      html += '<h2>3. Indicadores por Docente (Anônimo) — Distribuição por Departamento</h2>';
+      html += '<p style="font-size:8.5pt;color:#666;margin:-4px 0 10px 0">'
+        + 'Este relatório é destinado à Diretoria. Os docentes não são identificados individualmente. '
+        + 'Para a versão com identificação nominal, utilize o relatório específico do departamento.</p>';
+      sortedAsc.forEach(d => {
+        html += '<div class="dept-header"><span class="dot" style="background:' + d.color + '"></span>' + d.label
+          + ' <span style="font-size:9pt;font-weight:400;color:#666">(' + d.NDD + ' docentes)</span></div>';
+        html += '<table><thead><tr>'
+          + '<th>Docente</th>'
+          + '<th class="num">Prod. Acad. sem Ensino (pts)</th>'
+          + '<th class="num">H-A Sem. RADOC (h/sem)</th>'
+          + '<th class="num">Disp. Semanal (h/sem)</th>'
+          + '<th class="num">Total Ensino (h/ano)</th>'
+          + '</tr></thead><tbody>';
+        const profs = [...d.profs].sort((a,b) => a.hd - b.hd);
+        profs.forEach((p, i) => {
+          const zeroAlert = p.cdrd === 0 ? ' style="color:#b00;font-style:italic"' : '';
+          html += '<tr><td' + zeroAlert + '>Docente ' + String(i+1).padStart(2,'0')
+            + (p.cdrd===0 ? ' ⚠' : '') + '</td>'
+            + '<td class="num">' + p.pae.toFixed(1) + '</td>'
+            + '<td class="num">' + (p.horasRadocSem||0).toFixed(2) + '</td>'
+            + '<td class="num">' + p.hd.toFixed(2) + '</td>'
+            + '<td class="num' + (p.cdrd===0?' crd-hi':'') + '">' + p.cdrd.toFixed(1) + '</td></tr>';
+        });
+        const sumCdrd    = profs.reduce((s,p) => s+p.cdrd, 0);
+        const sumRadocSem= Math.round(profs.reduce((s,p) => s+(p.horasRadocSem||0), 0)*100)/100;
+        const avgHd      = Math.round(profs.reduce((s,p) => s+p.hd, 0)/profs.length*100)/100;
+        html += '<tr style="font-weight:700;background:#dce8f0">'
+          + '<td>Subtotal (' + d.NDD + ' docentes)</td>'
+          + '<td class="num">—</td>'
+          + '<td class="num">' + sumRadocSem.toFixed(2) + '</td>'
+          + '<td class="num">Média: ' + avgHd.toFixed(2) + '</td>'
+          + '<td class="num">' + sumCdrd.toFixed(1) + '</td></tr>';
+        html += '</tbody></table>';
+      });
+    } else {
+      // Section 3 (dept): show only the selected department with full names
+      html += '<h2>3. Detalhamento por Docente — ' + (deptFilter ? deptFilter.label : '') + '</h2>';
+      html += '<p style="font-size:8.5pt;color:#666;margin:-4px 0 10px 0">'
+        + 'Documento de uso restrito da Chefia do Departamento. '
+        + 'Horas calculadas a partir dos pontos do RADOC. Lato sensu excluído do CDRD.</p>';
+      if (deptFilter) {
+        html += deptDetailTable(deptFilter);
+      }
+    }
 
     // Automated narrative analysis
     html += '<h2>4. Análise Diagnóstica Automatizada</h2>';
@@ -6258,8 +6313,15 @@ Não entra no cálculo do CDRD — serve como referência comparativa com o Hd.<
         ),
 
         // ── Botão relatório ────────────────────────────────────
-        crData && e('div', { className: 'cad-report-btn-row', style: { marginTop: 8 } },
-          e('button', { className: 'btn', onClick: gerarRelatorioCR }, '📄 Gerar Relatório Completo')
+        crData && e('div', { className: 'cad-report-btn-row', style: { marginTop: 8, alignItems: 'center' } },
+          e('div', { className: 'cad-field', style: { flex: 0, minWidth: 320 } },
+            e('label', null, 'Tipo de relatório'),
+            e('select', { value: relTipo, onChange: ev => setRelTipo(ev.target.value) },
+              e('option', { value: 'resumo' }, '📋 Resumo Geral — sem identificação nominal (para a Diretoria)'),
+              crData.map(d => e('option', { key: d.id, value: d.id }, '🏛 Relatório ' + d.label + ' — com nomes (para a Chefia)'))
+            )
+          ),
+          e('button', { className: 'btn btn-primary', style: { marginTop: 18 }, onClick: () => gerarRelatorioCR(relTipo) }, '📄 Gerar Relatório')
         )
 
       ) // modal-body
