@@ -1313,6 +1313,17 @@ function parseDocenteInfo(text, fileName) {
     }
   }
 
+  // ── Normalizar classe/nível: A e B têm máx. 2 níveis ────────────────────
+  // Se o nível extraído exceder o máximo da classe, avança para a próxima
+  if (classeDoc && nivelDoc) {
+    const maxNivel = { A: 2, B: 2, C: 4, D: 4, E: 1 };
+    const proxClasse = { A: 'B', B: 'C', C: 'D', D: 'E' };
+    const n = parseInt(nivelDoc, 10);
+    if (n > (maxNivel[classeDoc] || 4) && proxClasse[classeDoc]) {
+      classeDoc = proxClasse[classeDoc];
+    }
+  }
+
   return { name, regime, classeDoc, nivelDoc };
 }
 
