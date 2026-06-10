@@ -1283,7 +1283,37 @@ function parseDocenteInfo(text, fileName) {
     regime = '20H';
   }
 
-  return { name, regime };
+  // ── Classe (A–E) — layout SIAPE/SICAD: "Classe: B" ───────────────────────
+  // Busca no início do documento (dados funcionais, antes das atividades)
+  let classeDoc = null;
+  const headerText = text.substring(0, 3000); // dados funcionais estão no topo
+  const classePatterns = [
+    /Classe\s*:\s*([A-E])\b/i,
+    /Classe\s*:\s*([A-E])\s/i,
+    /\bClasse\s+([A-E])\b/i,
+  ];
+  for (const pat of classePatterns) {
+    const mc = headerText.match(pat);
+    if (mc) { classeDoc = mc[1].toUpperCase(); break; }
+  }
+
+  // ── Nível (career level, always numeric) ─────────────────────────────────
+  // "Nível: 003" → "3"; distingue de "Nível: Graduação" (não numérico)
+  let nivelDoc = null;
+  const nivelPatterns = [
+    /N[íi]vel\s*:\s*0*([1-9])\b/i,
+    /N[íi]vel\s*:\s*0*([1-9])\s/i,
+    /N[ií]vel\s*:\s*(\d+)/i,
+  ];
+  for (const pat of nivelPatterns) {
+    const mn = headerText.match(pat);
+    if (mn) {
+      const n = parseInt(mn[1], 10);
+      if (n >= 1 && n <= 10) { nivelDoc = String(n); break; }
+    }
+  }
+
+  return { name, regime, classeDoc, nivelDoc };
 }
 
 function parseItems(text) {
@@ -5817,99 +5847,204 @@ tr:nth-child(even) td{background:#f9f9f9}
             '📊 Diagnóstico da Unidade — Todos os Docentes (sem Incisos IV e V)'
           ),
 
-          // Auto-build diagProfs from classeDoc/nivelDoc in evaluations
           (() => {
-            // Compute per-professor data: use most recent RADOC for classe/nivel
-            const profMap = {};
-            evaluations.forEach(ev => {
-              if (!profMap[ev.name]) profMap[ev.name] = { classe: null, nivel: null };
-              if (ev.classeDoc && !profMap[ev.name].classe) {
-                profMap[ev.name].classe = ev.classeDoc;
-                profMap[ev.name].nivel  = ev.nivelDoc || null;
-              }
-            });
+            const profNames = [...new Set(evaluations.map(ev => ev.name))].sort();
 
-            const missing = Object.entries(profMap).filter(([,dp]) => !dp.classe || !dp.nivel);
-            const allOk   = missing.length === 0;
+            // Auto-populate from RADOC-extracted data on first render
+            uE(() => {
+              const autoMap = {};
+              profNames.forEach(n => {
+                if (diagProfs[n]) return; // already set manually
+                const ev = [...evaluations].filter(e=>e.name===n)
+                  .sort((a,b) => yearFromFile(b.fileName).localeCompare(yearFromFile(a.fileName)))[0];
+                if (ev?.classeDoc && ev?.nivelDoc) {
+                  autoMap[n] = { classe: ev.classeDoc, nivel: ev.nivelDoc };
+                }
+              });
+              if (Object.keys(autoMap).length > 0) {
+                setDiagProfs(prev => ({ ...autoMap, ...prev }));
+              }
+            }, [evaluations.length]);
+            const allFilled = profNames.every(n => diagProfs[n]?.classe && diagProfs[n]?.nivel);
             const nivelMax2 = { A:2, B:2, C:4, D:4, E:1 };
 
+            // ── CSV import handler ──────────────────────────────
+            function importCSV(file) {
+              const reader = new FileReader();
+              reader.onload = e2 => {
+                const lines = e2.target.result.split(/\r?\n/).filter(l => l.trim());
+                const map = {};
+                lines.forEach(line => {
+                  // Format: Nome,Classe,Nivel  OR  Nome;Classe;Nivel
+                  const parts = line.split(/[;,]/).map(s => s.trim());
+                  if (parts.length >= 3) {
+                    const nome   = parts[0].toUpperCase().trim();
+                    const classe = parts[1].toUpperCase().trim();
+                    const nivel  = String(parseInt(parts[2]) || '');
+                    if (nome && ['A','B','C','D','E'].includes(classe) && nivel) {
+                      // Try to match with loaded professors (fuzzy: first + last name)
+                      const match = profNames.find(pn =>
+                        pn.toUpperCase() === nome ||
+                        pn.toUpperCase().split(' ')[0] === nome.split(' ')[0] &&
+                        pn.toUpperCase().split(' ').slice(-1)[0] === nome.split(' ').slice(-1)[0]
+                      );
+                      if (match) map[match] = { classe, nivel };
+                      else map[nome] = { classe, nivel }; // store anyway for exact match
+                    }
+                  }
+                });
+                setDiagProfs(prev => ({ ...prev, ...map }));
+              };
+              reader.readAsText(file, 'UTF-8');
+            }
+
+            // ── JSON save/load ──────────────────────────────────
+            function salvarConfig() {
+              const data = JSON.stringify({ diagProfs, geradoEm: new Date().toISOString() }, null, 2);
+              const blob = new Blob([data], { type: 'application/json' });
+              const url  = URL.createObjectURL(blob);
+              const a    = document.createElement('a');
+              a.href = url; a.download = 'EECA_ClasseNivel.json'; a.click();
+              URL.revokeObjectURL(url);
+            }
+            function carregarConfig(file) {
+              const reader = new FileReader();
+              reader.onload = e2 => {
+                try {
+                  const data = JSON.parse(e2.target.result);
+                  if (data.diagProfs) setDiagProfs(data.diagProfs);
+                } catch(err) { alert('Arquivo inválido.'); }
+              };
+              reader.readAsText(file);
+            }
+
             return e('div', null,
-              // Status row
-              e('div', { style:{ fontSize:11, color:'var(--text-muted)', margin:'8px 0 6px 0' } },
-                Object.keys(profMap).length + ' professor(es) detectado(s) nos RADOCs · ',
-                allOk
-                  ? e('span', { style:{ color:'var(--green)', fontWeight:600 } },
-                      '✓ Classe e nível extraídos automaticamente para todos')
-                  : e('span', { style:{ color:'var(--orange)', fontWeight:600 } },
-                      '⚠ ' + missing.length + ' professor(es) sem classe/nível no RADOC — preencha manualmente abaixo')
+
+              // ── Toolbar ──────────────────────────────────────
+              e('div', { style:{ display:'flex', gap:8, flexWrap:'wrap', margin:'8px 0 10px 0', alignItems:'center' } },
+                e('label', {
+                  style:{ padding:'5px 12px', background:'var(--accent)', color:'#fff',
+                    borderRadius:4, fontSize:12, fontWeight:600, cursor:'pointer' },
+                  title:'CSV com colunas: Nome, Classe, Nivel (vírgula ou ponto-e-vírgula)'
+                },
+                  '📥 Importar CSV (Nome, Classe, Nível)',
+                  e('input', { type:'file', accept:'.csv,.txt', style:{ display:'none' },
+                    onChange: ev2 => { if (ev2.target.files[0]) importCSV(ev2.target.files[0]); ev2.target.value=''; }
+                  })
+                ),
+                e('label', {
+                  style:{ padding:'5px 12px', background:'var(--surface-alt)', border:'1px solid var(--border)',
+                    borderRadius:4, fontSize:12, cursor:'pointer' }
+                },
+                  '📂 Carregar configuração (.json)',
+                  e('input', { type:'file', accept:'.json', style:{ display:'none' },
+                    onChange: ev2 => { if (ev2.target.files[0]) carregarConfig(ev2.target.files[0]); ev2.target.value=''; }
+                  })
+                ),
+                Object.keys(diagProfs).length > 0 && e('button', {
+                  className:'btn', style:{ fontSize:12, padding:'5px 12px' },
+                  onClick: salvarConfig, title:'Salva o mapeamento atual para reusar depois'
+                }, '💾 Salvar configuração'),
+                e('span', { style:{ fontSize:11, color:'var(--text-muted)', flex:1 } },
+                  profNames.length + ' professor(es) · ',
+                  e('span', { style:{ color: allFilled ? 'var(--green)' : 'var(--orange)', fontWeight:600 } },
+                    allFilled
+                      ? '✓ Todos preenchidos — pode gerar'
+                      : profNames.filter(n => !diagProfs[n]?.classe || !diagProfs[n]?.nivel).length + ' pendente(s)'
+                  ),
+                  // Show how many were auto-extracted from RADOC
+                  (() => {
+                    const autoCount = profNames.filter(n => {
+                      const ev = evaluations.find(ev => ev.name === n);
+                      return ev?.classeDoc;
+                    }).length;
+                    return autoCount > 0
+                      ? e('span', { style:{ color:'var(--green)', marginLeft:8 } },
+                          ' · ✓ ' + autoCount + ' extraído(s) automaticamente do RADOC')
+                      : e('span', { style:{ color:'var(--text-muted)', marginLeft:8 } },
+                          ' · RADOC sem dados funcionais — use CSV ou preencha manualmente');
+                  })()
+                )
               ),
 
-              // Table
-              e('div', { style:{ border:'1px solid var(--border)', borderRadius:6, overflow:'hidden', marginBottom:10 } },
+              // ── CSV format hint ───────────────────────────────
+              e('p', { style:{ fontSize:10, color:'var(--text-muted)', margin:'-4px 0 8px 0',
+                background:'var(--surface-alt)', padding:'4px 8px', borderRadius:4 } },
+                '📋 Formato CSV: uma linha por professor — ',
+                e('code', null, 'HUGO JOSE RIBEIRO,D,2'),
+                ' ou ',
+                e('code', null, 'HUGO JOSE RIBEIRO;D;2'),
+                ' · Classe = A/B/C/D/E · Nível = número · Exporte do SIAPE e ajuste se necessário.'
+              ),
+
+              // ── Table ─────────────────────────────────────────
+              e('div', { style:{ border:'1px solid var(--border)', borderRadius:6,
+                overflow:'hidden', marginBottom:10, maxHeight:320, overflowY:'auto' } },
                 e('div', { style:{ display:'grid', gridTemplateColumns:'1fr 100px 90px 1fr',
                   background:'var(--accent)', color:'#fff', padding:'5px 10px',
-                  fontSize:11, fontWeight:700, gap:8 } },
-                  e('span', null, 'Professor(a)'), e('span', null, 'Classe'), e('span', null, 'Nível'), e('span', null, 'Tipo inferido')
+                  fontSize:11, fontWeight:700, gap:8,
+                  position:'sticky', top:0, zIndex:1 } },
+                  e('span', null, 'Professor(a)'),
+                  e('span', null, 'Classe'),
+                  e('span', null, 'Nível'),
+                  e('span', null, 'Tipo inferido')
                 ),
-                Object.entries(profMap).map(([name, dp], idx) => {
-                  const cVal = diagProfs[name]?.classe || dp.classe || '';
-                  const nVal = diagProfs[name]?.nivel  || dp.nivel  || '';
-                  const ti   = inferCADType(cVal, nVal);
-                  const nivDp = cVal ? Array.from({length: nivelMax2[cVal]||4}, (_,i)=>i+1) : [];
-                  const fromRadoc = !!dp.classe;
+                profNames.map((name, idx) => {
+                  const dp   = diagProfs[name] || { classe:'', nivel:'' };
+                  const ti   = inferCADType(dp.classe, dp.nivel);
+                  const ok   = dp.classe && dp.nivel;
+                  const nivDp = dp.classe ? Array.from({length: nivelMax2[dp.classe]||4}, (_,i)=>i+1) : [];
                   return e('div', { key: name,
                     style:{ display:'grid', gridTemplateColumns:'1fr 100px 90px 1fr',
                       padding:'5px 10px', gap:8, alignItems:'center',
-                      background: idx%2===0 ? 'var(--surface)' : 'var(--surface-alt)',
+                      background: !ok
+                        ? 'rgba(255,160,0,0.06)'
+                        : idx%2===0 ? 'var(--surface)' : 'var(--surface-alt)',
                       borderTop: idx>0 ? '1px solid var(--border)' : 'none' } },
                     e('span', { style:{ fontSize:12 } }, name),
-                    e('select', { value: cVal,
-                      style:{ padding:'3px 6px', border:'1px solid '+(fromRadoc?'var(--green)':'var(--orange)'),
-                        borderRadius:4, fontSize:12, width:'100%',
-                        background: fromRadoc ? 'var(--green-bg)' : '' },
-                      onChange: ev2 => setDiagProfs(prev => ({...prev, [name]:{ classe:ev2.target.value, nivel:'' }}))
+                    e('select', { value: dp.classe,
+                      style:{ padding:'3px 6px', border:'1px solid '+(ok?'var(--green)':'var(--orange)'),
+                        borderRadius:4, fontSize:12, width:'100%' },
+                      onChange: ev2 => setDiagProfs(prev => ({
+                        ...prev, [name]:{ classe: ev2.target.value, nivel:'' }
+                      }))
                     },
                       e('option', { value:'' }, '—'),
                       ['A','B','C','D','E'].map(c => e('option',{key:c,value:c},c))
                     ),
-                    e('select', { value: nVal,
-                      style:{ padding:'3px 6px', border:'1px solid '+(fromRadoc?'var(--green)':'var(--orange)'),
-                        borderRadius:4, fontSize:12, width:'100%',
-                        background: fromRadoc ? 'var(--green-bg)' : '' },
-                      onChange: ev2 => setDiagProfs(prev => ({...prev, [name]:{ ...(prev[name]||{}), nivel:ev2.target.value }}))
+                    e('select', { value: dp.nivel,
+                      style:{ padding:'3px 6px', border:'1px solid '+(ok?'var(--green)':'var(--orange)'),
+                        borderRadius:4, fontSize:12, width:'100%' },
+                      onChange: ev2 => setDiagProfs(prev => ({
+                        ...prev, [name]:{ ...(prev[name]||{}), nivel: ev2.target.value }
+                      }))
                     },
                       e('option', { value:'' }, '—'),
                       nivDp.map(n => e('option',{key:n,value:String(n)},String(n)))
                     ),
-                    e('span', { style:{ fontSize:11, color: ti?'var(--accent)':'var(--text-muted)', fontWeight: ti?600:400 } },
+                    e('span', { style:{ fontSize:11,
+                      color: ti ? 'var(--accent)' : 'var(--text-muted)',
+                      fontWeight: ti ? 600 : 400 } },
                       ti ? (CAD_TYPE_LABELS[ti]||ti) : '— preencha'
                     )
                   );
                 })
               ),
 
-              // merged diagProfs = auto + manual overrides
-              (() => {
-                const merged = {};
-                Object.entries(profMap).forEach(([n, dp]) => {
-                  merged[n] = { classe: diagProfs[n]?.classe||dp.classe||'', nivel: diagProfs[n]?.nivel||dp.nivel||'' };
-                });
-                const anyMissing = Object.values(merged).some(dp => !dp.classe||!dp.nivel);
-                return e('div', { style:{ display:'flex', gap:8 } },
-                  e('button', {
-                    className: 'btn btn-primary',
-                    disabled: anyMissing,
-                    title: anyMissing ? 'Preencha classe e nível de todos os professores' : '',
-                    onClick: () => { setDiagProfs(merged); gerarRelatorioDiagnostico(merged); }
-                  }, '📄 Gerar Relatório Diagnóstico'),
-                  anyMissing && e('span', { style:{ fontSize:11, color:'var(--orange)', alignSelf:'center' } },
-                    '⚠ Preencha os campos em destaque antes de gerar')
-                );
-              })()
+              // ── Generate button ───────────────────────────────
+              e('div', { style:{ display:'flex', gap:8, alignItems:'center' } },
+                e('button', {
+                  className: 'btn btn-primary',
+                  disabled: !allFilled,
+                  title: !allFilled ? 'Preencha classe e nível de todos os professores' : '',
+                  onClick: () => gerarRelatorioDiagnostico(diagProfs)
+                }, '📄 Gerar Relatório Diagnóstico'),
+                !allFilled && e('span', { style:{ fontSize:11, color:'var(--orange)' } },
+                  '⚠ Preencha os campos laranja — ou importe o CSV do SIAPE')
+              )
             );
           })()
         )
-
       ) // modal-body
     ) // modal
   ); // overlay
