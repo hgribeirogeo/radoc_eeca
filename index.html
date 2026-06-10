@@ -4676,6 +4676,25 @@ function CADEvalModule({ evaluations: evalsGlobal, onClose }) {
     setDiasLicPorBienio(prev => Array.from({ length: numBienios }, (_, i) => prev[i] || 0));
   }, [numBienios]);
 
+  // ── Auto-populate diagProfs from classeDoc/nivelDoc in RADOCs ──────────
+  uE(() => {
+    if (!evaluations.length) return;
+    const autoMap = {};
+    const names = [...new Set(evaluations.map(ev => ev.name))];
+    names.forEach(n => {
+      if (diagProfs[n]?.classe && diagProfs[n]?.nivel) return; // already set
+      const ev = [...evaluations]
+        .filter(e => e.name === n)
+        .sort((a, b) => yearFromFile(b.fileName).localeCompare(yearFromFile(a.fileName)))[0];
+      if (ev?.classeDoc && ev?.nivelDoc) {
+        autoMap[n] = { classe: ev.classeDoc, nivel: ev.nivelDoc };
+      }
+    });
+    if (Object.keys(autoMap).length > 0) {
+      setDiagProfs(prev => ({ ...autoMap, ...prev }));
+    }
+  }, [evaluations.length]);
+
   function updBienio(i, field, val) {
     setBienios(prev => prev.map((b, bi) => {
       if (bi !== i) return b;
@@ -5850,21 +5869,6 @@ tr:nth-child(even) td{background:#f9f9f9}
           (() => {
             const profNames = [...new Set(evaluations.map(ev => ev.name))].sort();
 
-            // Auto-populate from RADOC-extracted data on first render
-            uE(() => {
-              const autoMap = {};
-              profNames.forEach(n => {
-                if (diagProfs[n]) return; // already set manually
-                const ev = [...evaluations].filter(e=>e.name===n)
-                  .sort((a,b) => yearFromFile(b.fileName).localeCompare(yearFromFile(a.fileName)))[0];
-                if (ev?.classeDoc && ev?.nivelDoc) {
-                  autoMap[n] = { classe: ev.classeDoc, nivel: ev.nivelDoc };
-                }
-              });
-              if (Object.keys(autoMap).length > 0) {
-                setDiagProfs(prev => ({ ...autoMap, ...prev }));
-              }
-            }, [evaluations.length]);
             const allFilled = profNames.every(n => diagProfs[n]?.classe && diagProfs[n]?.nivel);
             const nivelMax2 = { A:2, B:2, C:4, D:4, E:1 };
 
