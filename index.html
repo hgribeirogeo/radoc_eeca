@@ -5356,10 +5356,10 @@ tr:nth-child(even) td{background:#f9f9f9}
 .kpi-box{flex:1;border-radius:4px;padding:10px;text-align:center}
 .kpi-box .n{font-size:22pt;font-weight:700;display:block}
 .kpi-box .l{font-size:9pt}
-.kpi-rep{background:#fce8e8;color:#b00}.kpi-pend{background:#fff8e0;color:#7a5500}
+.kpi-rep{background:#fce8e8;color:#b00}.kpi-pend{background:#e8f5ea;color:#1a6e2a}
 .kpi-ins{background:#f5f5f5;color:#666}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
-@media print{body{font-size:9pt}.no-print{display:none}}`;
+@media print{body{font-size:8.5pt}.page{padding:16px 18px}.no-print{display:none}table{font-size:7.5pt}th{padding:3px 4px;font-size:7pt}td{padding:3px 4px}}`;
 
     let html = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">'
       + '<title>Diagnóstico CAD — EECA/UFG</title><style>' + CSS + '</style></head><body><div class="page">';
@@ -5388,7 +5388,7 @@ tr:nth-child(even) td{background:#f9f9f9}
     // ── Main table ────────────────────────────────────────────
     html += '<h2>Quadro Diagnóstico — Todos os Docentes</h2>';
     html += '<table><thead><tr>'
-      + '<th>Docente</th><th>Área</th><th>Reg.</th><th>Classe/Nível</th><th>Tipo</th>'
+      + '<th style="min-width:90px">Docente</th><th>Área</th><th>Reg.</th><th>Cl./Nv.</th><th>Tipo</th>'
       + '<th>Biênio</th><th class="c">P</th><th class="c">N</th><th class="c">S</th>'
       + '<th class="c">I</th><th class="c">II</th><th class="c">III</th>'
       + '<th class="c">IV</th><th class="c">V</th><th class="c">VI</th>'
@@ -5458,7 +5458,7 @@ tr:nth-child(even) td{background:#f9f9f9}
               + '<td rowspan="'+fails.length+'" class="c" style="font-size:8pt">'+r.classe+'-'+r.nivel+' · '+(tipoShort[r.tipo]||'')+'</td>'
               + '<td rowspan="'+fails.length+'" class="c" style="font-family:monospace">'+r.y1+'/'+r.y2+'</td>'
               : '')
-            + '<td class="no">Inciso ' + c.num + ' — ' + c.label + '</td>'
+            + '<td class="no">Inciso ' + (ROMAN_DIAG[r.incisos.indexOf(c)] || String(r.incisos.indexOf(c)+1)) + ' — ' + c.label + '</td>'
             + '<td class="no c">' + v + '</td>'
             + '<td class="no c">' + t + '</td>'
             + '</tr>';
