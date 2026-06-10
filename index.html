@@ -5280,6 +5280,7 @@ table td, table th { border: 1px solid #999; padding: 4px 8px; }
       byProf[ev.name].push(ev);
     });
 
+    const ROMAN_DIAG = ['I','II','III','IV','V','VI','VII'];
     const results = [];
     Object.entries(profData).forEach(([name, dp]) => {
       const evs = (byProf[name] || []).sort((a,b) =>
@@ -5313,7 +5314,7 @@ table td, table th { border: 1px solid #999; padding: 4px 8px; }
 
       // Status based only on non-external incisos
       const objFail = incisos.filter(c => !c.externo && c.met === false);
-      const status  = objFail.length > 0 ? 'reprovado' : 'pendente';
+      const status  = objFail.length > 0 ? 'reprovado' : 'aprovado';
 
       results.push({
         name, regime: reg, area: ev2.area,
@@ -5324,7 +5325,7 @@ table td, table th { border: 1px solid #999; padding: 4px 8px; }
     });
 
     // Sort: reprovado first, then pendente, then insuficiente
-    const order = { reprovado:0, pendente:1, insuficiente:2 };
+    const order = { reprovado:0, aprovado:1, insuficiente:2 };
     results.sort((a,b) => {
       const s = (order[a.status]||0) - (order[b.status]||0);
       return s !== 0 ? s : (a.area||'').localeCompare(b.area||'');
@@ -5333,7 +5334,7 @@ table td, table th { border: 1px solid #999; padding: 4px 8px; }
     const areaLabel = id => (AREAS.find(a=>a.id===id)||{label:id||'—'}).label;
     const areaColor = id => (AREAS.find(a=>a.id===id)||{color:'#888'}).color;
     const nRep   = results.filter(r=>r.status==='reprovado').length;
-    const nPend  = results.filter(r=>r.status==='pendente').length;
+    const nAprov = results.filter(r=>r.status==='aprovado').length;
     const nInsuf = results.filter(r=>r.status==='insuficiente').length;
 
     const CSS = `body{font-family:Arial,sans-serif;font-size:10pt;color:#111;margin:0;padding:0}
@@ -5379,12 +5380,12 @@ tr:nth-child(even) td{background:#f9f9f9}
       + '<strong>Biênio:</strong> os dois RADOCs mais recentes de cada docente.<br>'
       + '<strong>Tipo de avaliação:</strong> determinado pela classe e nível informados — coeficientes do Art. 27/39/52 da CONSUNI 18/2017.<br>'
       + '<strong>Status:</strong> <em>Reprovado</em> = falhou em I, II, III ou VI (independente de IV/V) · '
-      + '<em>Pendente</em> = critérios objetivos cumpridos, aguarda notas IV e V da CAD.'
+      + '<em>Aprovado</em> = critérios objetivos I, II, III e VI cumpridos. Incisos IV/V avaliados separadamente pela CAD.'
       + '</div>';
 
     html += '<div class="kpi">'
       + '<div class="kpi-box kpi-rep"><span class="n">' + nRep + '</span><span class="l">✗ Reprovado<br>(critérios objetivos)</span></div>'
-      + '<div class="kpi-box kpi-pend"><span class="n">' + nPend + '</span><span class="l">⏳ Pendente<br>(aguarda IV e V)</span></div>'
+      + '<div class="kpi-box kpi-pend"><span class="n">' + nAprov + '</span><span class="l">⏳ Pendente<br>(aguarda IV e V)</span></div>'
       + '<div class="kpi-box kpi-ins"><span class="n">' + nInsuf + '</span><span class="l">— Insuficiente<br>(< 2 RADOCs)</span></div>'
       + '</div>';
 
@@ -5408,8 +5409,8 @@ tr:nth-child(even) td{background:#f9f9f9}
       }
       const tipoShort = { progressao:'Prog. Art.27', promocao_bc:'Prom. Art.39 B/C',
         promocao_d:'Prom. Art.39 D', promocao_e:'Prom. Art.52 E', probatorio:'Prob. Art.18' };
-      const stCls = r.status === 'reprovado' ? 'rep' : 'pend';
-      const stTxt = r.status === 'reprovado' ? '✗ Reprovado' : '⏳ Pendente';
+      const stCls = r.status === 'reprovado' ? 'rep' : 'aprov';
+      const stTxt = r.status === 'reprovado' ? '✗ Reprovado' : '✓ Aprovado';
 
       html += '<tr>'
         + '<td style="font-size:8pt">' + r.name + '</td>'
