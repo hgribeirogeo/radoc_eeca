@@ -5284,13 +5284,16 @@ table td, table th { border: 1px solid #999; padding: 4px 8px; }
     Object.entries(profData).forEach(([name, dp]) => {
       const evs = (byProf[name] || []).sort((a,b) =>
         yearFromFile(b.fileName).localeCompare(yearFromFile(a.fileName)));
-      if (evs.length < 2) {
-        results.push({ name, regime: evs[0]?.regime||'—', area: evs[0]?.area||'—',
+      if (!evs.length) {
+        results.push({ name, regime:'—', area:'—',
           classe: dp.classe, nivel: dp.nivel, tipo: null,
           y1:'—', y2:'—', incisos:null, status:'insuficiente' });
         return;
       }
-      const ev2 = evs[0], ev1 = evs[1];
+      // 1 RADOC: usa o mesmo para os dois anos do biênio
+      const ev2 = evs[0];
+      const ev1 = evs.length >= 2 ? evs[1] : evs[0];
+      const soloRadoc = evs.length === 1;
       const sc1 = ev1.scores, sc2 = ev2.scores;
       const reg = ev2.regime;
       const tipo = inferCADType(dp.classe, dp.nivel) || 'progressao';
@@ -5315,7 +5318,7 @@ table td, table th { border: 1px solid #999; padding: 4px 8px; }
       results.push({
         name, regime: reg, area: ev2.area,
         classe: dp.classe, nivel: dp.nivel, tipo,
-        y1: yearFromFile(ev1.fileName), y2: yearFromFile(ev2.fileName),
+        y1: yearFromFile(ev1.fileName), y2: yearFromFile(ev2.fileName), soloRadoc,
         incisos, P: r.P, N: r.N, S: r.S, status,
       });
     });
@@ -5399,7 +5402,7 @@ tr:nth-child(even) td{background:#f9f9f9}
       if (r.status === 'insuficiente') {
         html += '<tr><td style="font-size:8pt">' + r.name + '</td>'
           + '<td colspan="14" style="color:#999;font-style:italic;text-align:center">'
-          + 'RADOCs insuficientes — necessário mínimo de 2 para avaliação</td>'
+          + 'Nenhum RADOC encontrado para este docente</td>'
           + '<td class="ins">—</td></tr>';
         return;
       }
@@ -5414,7 +5417,7 @@ tr:nth-child(even) td{background:#f9f9f9}
         + '<td class="c">' + r.regime + '</td>'
         + '<td class="c">' + r.classe + '-' + r.nivel + '</td>'
         + '<td style="font-size:8pt">' + (tipoShort[r.tipo]||r.tipo||'—') + '</td>'
-        + '<td class="c" style="font-family:monospace">' + r.y1 + '/' + r.y2 + '</td>'
+        + '<td class="c" style="font-family:monospace">' + r.y1 + (r.soloRadoc ? ' ¹' : '/'+r.y2) + '</td>'
         + '<td class="num">' + r.P + '</td>'
         + '<td class="num">' + r.N.toFixed(1) + '</td>'
         + '<td class="num">' + r.S + '</td>';
