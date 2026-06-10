@@ -5200,6 +5200,228 @@ table td, table th { border: 1px solid #999; padding: 4px 8px; }
     if (win) win.focus();
   }
 
+  // ── Relatório Diagnóstico da Unidade (sem notas IV/V) ──────────
+  function gerarRelatorioDiagnostico() {
+    // Group evaluations by professor name
+    const byProf = {};
+    evaluations.forEach(ev => {
+      if (!byProf[ev.name]) byProf[ev.name] = [];
+      byProf[ev.name].push(ev);
+    });
+
+    // For each professor: sort by year (filename), take most recent 2
+    const results = [];
+    Object.entries(byProf).forEach(([name, evs]) => {
+      const sorted = [...evs].sort((a,b) =>
+        yearFromFile(b.fileName).localeCompare(yearFromFile(a.fileName)));
+      if (sorted.length < 2) {
+        results.push({ name, regime: sorted[0]?.regime || '—',
+          area: sorted[0]?.area || '—', status: 'insuficiente',
+          y1: '—', y2: '—', incisos: null });
+        return;
+      }
+      const ev2 = sorted[0]; // most recent
+      const ev1 = sorted[1]; // second most recent
+      const sc1 = ev1.scores, sc2 = ev2.scores;
+      const reg = ev2.regime;
+
+      // Compute biênio scores
+      const i1   = Math.round((sc1.ENS_GRAD  + sc2.ENS_GRAD)  * 100) / 100;
+      const i1i2 = Math.round((sc1.ENS_TOTAL + sc2.ENS_TOTAL) * 100) / 100;
+      const prod  = Math.round((sc1.PRI      + sc2.PRI)       * 100) / 100;
+      const P     = Math.round((sc1.TOTAL    + sc2.TOTAL)     * 100) / 100;
+      const S     = Math.round((P - prod)    * 100)           / 100;
+      const N     = calcN(P, reg);
+
+      // Inciso III adjustment (uses progressão thresholds — most common case)
+      const kS = reg === '20H' ? 50 : 80;
+      let prodExig = 40;
+      if (S >= 160) prodExig = Math.max(0, kS - S / 4);
+
+      const inc = [
+        { num:'I',   label:'I-1 ≥ 80 pts',          val: i1,   thr: 80,       met: i1   >= 80   },
+        { num:'II',  label:'I-1+I-2 ≥ 160 pts',      val: i1i2, thr: 160,      met: i1i2 >= 160  },
+        { num:'III', label:'Prod. Int. ≥ ' + prodExig.toFixed(1) + ' pts'
+                          + (S >= 160 ? ' (S=' + S + ')' : ''),
+          val: prod, thr: prodExig, met: prod >= prodExig },
+        { num:'IV',  label:'Média Estudantes ≥ 6,0', val: null, thr: 6.0,      met: null, externo: true },
+        { num:'V',   label:'Avaliação Chefia ≥ 6,0', val: null, thr: 6.0,      met: null, externo: true },
+        { num:'VI',  label:'N ≥ 7,5',                val: N,    thr: 7.5,      met: N >= 7.5 },
+      ];
+
+      // Status: REPROVADO if any objective inciso fails; PENDENTE if all objective pass
+      const objFail = inc.filter(c => !c.externo && !c.met);
+      const status  = objFail.length > 0 ? 'reprovado' : 'pendente';
+
+      results.push({
+        name, regime: reg, area: ev2.area,
+        y1: yearFromFile(ev1.fileName), y2: yearFromFile(ev2.fileName),
+        incisos: inc, P, N, S, status,
+      });
+    });
+
+    // Sort: reprovado first, then pendente, then insuficiente; within each group by area
+    const order = { reprovado:0, pendente:1, insuficiente:2 };
+    results.sort((a,b) => {
+      const s = (order[a.status]||0) - (order[b.status]||0);
+      if (s !== 0) return s;
+      return (a.area||'').localeCompare(b.area||'');
+    });
+
+    // Area label helper
+    const areaLabel = id => (AREAS.find(a=>a.id===id)||{label:id||'—'}).label;
+    const areaColor = id => (AREAS.find(a=>a.id===id)||{color:'#888'}).color;
+
+    // Counts
+    const nRep  = results.filter(r=>r.status==='reprovado').length;
+    const nPend = results.filter(r=>r.status==='pendente').length;
+    const nInsuf= results.filter(r=>r.status==='insuficiente').length;
+
+    const CSS = `
+body{font-family:Arial,sans-serif;font-size:10pt;color:#111;margin:0;padding:0}
+.page{max-width:820px;margin:0 auto;padding:28px 36px}
+h1{font-size:13pt;font-weight:700;color:#1a4b8c;margin:0 0 6px}
+h2{font-size:11pt;font-weight:700;color:#1a4b8c;margin:16px 0 6px;border-bottom:2px solid #1a4b8c;padding-bottom:3px}
+table{width:100%;border-collapse:collapse;font-size:8.5pt;margin-bottom:14px}
+th{background:#1a4b8c;color:#fff;padding:5px 7px;font-size:8pt}
+th.num{text-align:right}
+td{padding:5px 7px;border:1px solid #ddd;vertical-align:middle}
+tr:nth-child(even) td{background:#f9f9f9}
+.num{text-align:right;font-family:monospace}
+.ok {background:#e8f5ea;color:#1a6e2a;font-weight:700;text-align:center}
+.no {background:#fce8e8;color:#b00;font-weight:700;text-align:center}
+.ext{background:#f5f5f5;color:#999;text-align:center;font-style:italic}
+.rep{background:#fce8e8;color:#b00;font-weight:700;text-align:center}
+.pend{background:#fff8e0;color:#7a5500;font-weight:700;text-align:center}
+.ins{background:#f5f5f5;color:#888;text-align:center}
+.box{border-radius:4px;padding:10px 14px;font-size:9.5pt;margin-bottom:12px;line-height:1.6}
+.box-warn{background:#fce8e8;border:1px solid #e09090}
+.box-info{background:#e8f0fe;border:1px solid #a0b8e0}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
+.kpi{display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap}
+.kpi-box{flex:1;min-width:120px;border-radius:4px;padding:10px 14px;text-align:center}
+.kpi-box .n{font-size:22pt;font-weight:700;display:block}
+.kpi-box .l{font-size:9pt}
+.kpi-rep{background:#fce8e8;color:#b00}
+.kpi-pend{background:#fff8e0;color:#7a5500}
+.kpi-ins{background:#f5f5f5;color:#666}
+@media print{body{font-size:9pt}.no-print{display:none}}`;
+
+    let html = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">'
+      + '<title>Diagnóstico CAD — EECA/UFG</title><style>' + CSS + '</style></head><body><div class="page">';
+
+    // Header
+    html += '<div style="text-align:center;margin-bottom:16px">'
+      + '<div style="font-size:11pt;font-weight:700;color:#1a4b8c">UNIVERSIDADE FEDERAL DE GOIÁS — ESCOLA DE ENGENHARIA CIVIL E AMBIENTAL</div>'
+      + '<div style="font-size:10.5pt;font-weight:700;margin-top:4px">DIAGNÓSTICO OBJETIVO DE DESEMPENHO DOCENTE — DIREÇÃO</div>'
+      + '<div style="font-size:9pt;color:#555;margin-top:2px">Gerado em: ' + new Date().toLocaleString('pt-BR') + ' · '
+      + evaluations.length + ' RADOC(s) carregados · ' + results.length + ' docente(s) analisados</div></div>';
+
+    // Notice box
+    html += '<div class="box box-info">'
+      + '<strong>ℹ Escopo deste relatório:</strong> avaliação dos incisos I, II, III e VI com base exclusivamente nos dados do RADOC. '
+      + 'Os incisos IV (avaliação dos estudantes) e V (avaliação da chefia) não estão disponíveis nesta análise e aparecem como "Ext." — '
+      + 'devem ser levantados e informados separadamente pela CAD de cada departamento.<br>'
+      + '<strong>Referência:</strong> Art. 27 da Resolução CONSUNI 18/2017 (progressão funcional). '
+      + 'Para promoção entre classes, os coeficientes do Inciso III podem diferir — este diagnóstico aplica os coeficientes de progressão como base.<br>'
+      + '<strong>Biênio analisado:</strong> os dois RADOCs mais recentes disponíveis para cada docente.'
+      + '</div>';
+
+    // KPI summary
+    html += '<div class="kpi">'
+      + '<div class="kpi-box kpi-rep"><span class="n">' + nRep + '</span><span class="l">✗ Reprovado<br>(critérios objetivos)</span></div>'
+      + '<div class="kpi-box kpi-pend"><span class="n">' + nPend + '</span><span class="l">⏳ Pendente<br>(aguarda IV e V)</span></div>'
+      + '<div class="kpi-box kpi-ins"><span class="n">' + nInsuf + '</span><span class="l">— Insuficiente<br>(< 2 RADOCs)</span></div>'
+      + '</div>';
+
+    // Main table
+    html += '<h2>Quadro Diagnóstico — Todos os Docentes</h2>';
+    html += '<table><thead><tr>'
+      + '<th>Docente</th><th>Área</th><th>Reg.</th><th>Biênio</th>'
+      + '<th class="num">P total</th><th class="num">N</th><th class="num">S</th>'
+      + '<th style="text-align:center">I<br><small>≥80</small></th>'
+      + '<th style="text-align:center">II<br><small>≥160</small></th>'
+      + '<th style="text-align:center">III<br><small>variável</small></th>'
+      + '<th style="text-align:center">IV<br><small>externo</small></th>'
+      + '<th style="text-align:center">V<br><small>externo</small></th>'
+      + '<th style="text-align:center">VI<br><small>≥7,5</small></th>'
+      + '<th style="text-align:center">Status objetivo</th>'
+      + '</tr></thead><tbody>';
+
+    results.forEach(r => {
+      if (r.status === 'insuficiente') {
+        html += '<tr><td>' + r.name + '</td>'
+          + '<td><span class="dot" style="background:' + areaColor(r.area) + '"></span>' + areaLabel(r.area) + '</td>'
+          + '<td>' + r.regime + '</td>'
+          + '<td colspan="10" style="color:#999;font-style:italic;text-align:center">RADOCs insuficientes — necessário mínimo de 2 para avaliação</td>'
+          + '<td class="ins">—</td></tr>';
+        return;
+      }
+      const inc = r.incisos;
+      const stCls = r.status === 'reprovado' ? 'rep' : 'pend';
+      const stTxt = r.status === 'reprovado' ? '✗ Reprovado' : '⏳ Pendente';
+      html += '<tr>'
+        + '<td style="font-size:8pt">' + r.name + '</td>'
+        + '<td style="font-size:8pt"><span class="dot" style="background:' + areaColor(r.area) + '"></span>' + areaLabel(r.area) + '</td>'
+        + '<td>' + r.regime + '</td>'
+        + '<td style="text-align:center;font-family:monospace">' + r.y1 + '/' + r.y2 + '</td>'
+        + '<td class="num">' + r.P + '</td>'
+        + '<td class="num">' + r.N.toFixed(1) + '</td>'
+        + '<td class="num">' + r.S + '</td>';
+      inc.forEach(c => {
+        if (c.externo) {
+          html += '<td class="ext">Ext.</td>';
+        } else {
+          const v = typeof c.val === 'number' ? (c.val % 1 === 0 ? c.val : c.val.toFixed(1)) : '—';
+          html += '<td class="' + (c.met ? 'ok' : 'no') + '">' + v + '</td>';
+        }
+      });
+      html += '<td class="' + stCls + '">' + stTxt + '</td></tr>';
+    });
+    html += '</tbody></table>';
+
+    // Reprovado detail
+    const reprovados = results.filter(r=>r.status==='reprovado');
+    if (reprovados.length) {
+      html += '<h2>Detalhamento — Docentes Reprovados nos Critérios Objetivos</h2>';
+      html += '<div class="box box-warn">Os docentes abaixo falharam em pelo menos um dos incisos I, II, III ou VI. '
+        + 'A reprovação é independente das notas IV e V.</div>';
+      html += '<table><thead><tr>'
+        + '<th>Docente</th><th>Área</th><th>Biênio</th>'
+        + '<th>Inciso(s) não cumprido(s)</th><th class="num">Valor obtido</th><th class="num">Exigência</th>'
+        + '</tr></thead><tbody>';
+      reprovados.forEach(r => {
+        const fails = r.incisos.filter(c => !c.externo && !c.met);
+        fails.forEach((c, fi) => {
+          const v = typeof c.val === 'number' ? (c.val % 1 === 0 ? c.val : c.val.toFixed(1)) : '—';
+          const t = typeof c.thr === 'number' ? (c.thr % 1 === 0 ? c.thr : c.thr.toFixed(1)) : '—';
+          html += '<tr>'
+            + (fi === 0 ? '<td rowspan="' + fails.length + '" style="font-size:8pt">' + r.name + '</td>'
+                        + '<td rowspan="' + fails.length + '" style="font-size:8pt"><span class="dot" style="background:' + areaColor(r.area) + '"></span>' + areaLabel(r.area) + '</td>'
+                        + '<td rowspan="' + fails.length + '" style="text-align:center;font-family:monospace">' + r.y1 + '/' + r.y2 + '</td>' : '')
+            + '<td class="no">Inciso ' + c.num + ' — ' + c.label + '</td>'
+            + '<td class="no num">' + v + '</td>'
+            + '<td class="no num">' + t + '</td>'
+            + '</tr>';
+        });
+      });
+      html += '</tbody></table>';
+    }
+
+    html += '<p style="font-size:8.5pt;color:#888;text-align:center;margin-top:20px">'
+      + 'Relatório de uso restrito da Direção — SICAD Avaliador EECA/UFG. '
+      + 'Este diagnóstico não substitui o parecer formal da CAD. '
+      + 'Fundamentado na Resolução CONSUNI 18/2017.</p>';
+
+    html += '</div>'
+      + '<div style="text-align:center;padding:16px" class="no-print">'
+      + '<button onclick="window.print()" style="padding:8px 24px;font-size:12pt;cursor:pointer">Imprimir / Salvar PDF</button>'
+      + '</div></body></html>';
+
+    const blob = new Blob([html], { type: 'text/html' });
+    window.open(URL.createObjectURL(blob), '_blank');
+  }
+
   const nivelMax = { A: 2, B: 2, C: 4, D: 4, E: 1 };
   const niveisDaClasse = classe ? Array.from({ length: nivelMax[classe] || 4 }, (_, i) => i + 1) : [];
   const podaCalc = profName && tipo && (
@@ -5513,7 +5735,13 @@ table td, table th { border: 1px solid #999; padding: 4px 8px; }
             title: 'Salvar estado da análise em arquivo JSON para continuar depois',
             style: { fontSize: 12 }
           }, '💾 Salvar análise'),
-          temResultado && e('button', { className: 'btn', onClick: gerarRelatorio }, '📄 Gerar Relatório HTML')
+          temResultado && e('button', { className: 'btn', onClick: gerarRelatorio }, '📄 Gerar Relatório HTML'),
+          evaluations.length >= 2 && e('button', {
+            className: 'btn',
+            style: { background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' },
+            onClick: gerarRelatorioDiagnostico,
+            title: 'Avalia todos os docentes com base apenas nos dados do RADOC — sem notas IV e V'
+          }, '📊 Diagnóstico da Unidade (Direção)')
         ),
 
         tipo === 'promocao_e' && e('div', { className: 'cad-aviso-externo' },
