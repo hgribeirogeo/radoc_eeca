@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SICAD Avaliador — UFG</title>
+<title>SICAD Avaliador — ferramenta pessoal · EECA/UFG</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -2572,7 +2572,7 @@ ${reviewManualHtml}
       e('div', { className:'modal', onClick:ev=>ev.stopPropagation() },
         e('h3', null, 'Configurações — Gist Sync'),
         e('label', null, 'GitHub Token (gist scope)'),
-        e('input', { type:'password', value:token, onChange:ev=>setToken(ev.target.value), placeholder:'ghp_...' }),
+        e('input', { type:'text', value:token, onChange:ev=>setToken(ev.target.value), placeholder:'ghp_...', autoComplete:'off', spellCheck:false, 'data-lpignore':'true', style:{ WebkitTextSecurity:'disc' } }),
         e('label', null, 'Gist ID (deixe vazio para criar novo)'),
         e('input', { type:'text', value:gistId, onChange:ev=>setGistId(ev.target.value), placeholder:'abc123...' }),
         e('div', { className:'actions' },
